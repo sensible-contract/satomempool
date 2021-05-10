@@ -12,7 +12,6 @@ var (
 	Log    *zap.Logger
 	LogErr *zap.Logger
 
-	LogBlk      *zap.Logger
 	LogTx       *zap.Logger
 	LogTxIn     *zap.Logger
 	LogTxInFull *zap.Logger
@@ -54,14 +53,6 @@ func init() {
 		OutputPaths:       []string{"stderr"},
 	}.Build()
 
-	LogBlk, _ = zap.Config{
-		Encoding:          dumpEncoding,
-		Level:             zap.NewAtomicLevelAt(zapcore.InfoLevel),
-		DisableCaller:     true,
-		DisableStacktrace: true,
-		OutputPaths:       []string{pathPrefix + "/blk" + pathSurfix},
-	}.Build()
-
 	LogTx, _ = zap.Config{
 		Encoding:          dumpEncoding,
 		Level:             zap.NewAtomicLevelAt(zapcore.InfoLevel),
@@ -91,7 +82,6 @@ func init() {
 func SyncLog() {
 	Log.Sync()
 	LogErr.Sync()
-	LogBlk.Sync()
 	LogTx.Sync()
 	LogTxIn.Sync()
 	LogTxOut.Sync()
