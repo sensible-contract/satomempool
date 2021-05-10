@@ -15,7 +15,7 @@ var (
 )
 
 // SyncBlockTx all tx in block height
-func SyncBlockTx(txs []*model.Tx) {
+func SyncBlockTx(startIdx int, txs []*model.Tx) {
 	for txIdx, tx := range txs {
 		if _, err := store.SyncStmtTx.Exec(
 			string(tx.Hash),
@@ -27,7 +27,7 @@ func SyncBlockTx(txs []*model.Tx) {
 			tx.OutputsValue,
 			model.MEMPOOL_HEIGHT, // uint32(block.Height),
 			"",                   // string(block.Hash),
-			uint64(txIdx),
+			uint64(startIdx+txIdx),
 		); err != nil {
 			logger.Log.Info("sync-tx-err",
 				zap.String("sync", "tx err"),
@@ -39,7 +39,7 @@ func SyncBlockTx(txs []*model.Tx) {
 }
 
 // SyncBlockTxOutputInfo all tx output info
-func SyncBlockTxOutputInfo(txs []*model.Tx) {
+func SyncBlockTxOutputInfo(startIdx int, txs []*model.Tx) {
 	for txIdx, tx := range txs {
 		for vout, output := range tx.TxOuts {
 			tx.OutputsValue += output.Satoshi
@@ -55,7 +55,7 @@ func SyncBlockTxOutputInfo(txs []*model.Tx) {
 				string(output.LockingScriptType),
 				string(output.Pkscript),
 				model.MEMPOOL_HEIGHT, // uint32(block.Height),
-				uint64(txIdx),
+				uint64(startIdx+txIdx),
 			); err != nil {
 				logger.Log.Info("sync-txout-err",
 					zap.String("sync", "txout err"),
@@ -69,7 +69,7 @@ func SyncBlockTxOutputInfo(txs []*model.Tx) {
 }
 
 // SyncBlockTxInputDetail all tx input info
-func SyncBlockTxInputDetail(txs []*model.Tx, mpNewUtxo, removeUtxo, mpSpentUtxo map[string]*model.TxoData, mpTokenSummary map[string]*model.TokenData) {
+func SyncBlockTxInputDetail(startIdx int, txs []*model.Tx, mpNewUtxo, removeUtxo, mpSpentUtxo map[string]*model.TxoData, mpTokenSummary map[string]*model.TokenData) {
 	var commonObjData *model.TxoData = &model.TxoData{
 		CodeHash:   make([]byte, 1),
 		GenesisId:  make([]byte, 1),
@@ -129,7 +129,7 @@ func SyncBlockTxInputDetail(txs []*model.Tx, mpNewUtxo, removeUtxo, mpSpentUtxo 
 			SyncTxFullCount++
 			if _, err := store.SyncStmtTxIn.Exec(
 				model.MEMPOOL_HEIGHT, // uint32(block.Height),
-				uint64(txIdx),
+				uint64(startIdx+txIdx),
 				string(tx.Hash),
 				uint32(vin),
 				string(input.ScriptSig),

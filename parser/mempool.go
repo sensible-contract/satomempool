@@ -28,7 +28,7 @@ type Mempool struct {
 func NewMempool() (mp *Mempool, err error) {
 	mp = new(Mempool)
 
-	mp.BlockNotify = make(chan []byte)
+	mp.BlockNotify = make(chan []byte, 10)
 	mp.RawTxNotify = make(chan []byte, 1000)
 
 	return
@@ -66,6 +66,7 @@ func (mp *Mempool) LoadFromMempool() bool {
 			continue
 		}
 
+		tx.Size = uint32(txoffset)
 		tx.Hash = utils.GetHash256(rawtx)
 		tx.HashHex = utils.HashString(tx.Hash)
 
@@ -95,6 +96,7 @@ func (mp *Mempool) SyncMempoolFromZmq() {
 			continue
 		}
 
+		tx.Size = uint32(txoffset)
 		tx.Hash = utils.GetHash256(rawtx)
 		tx.HashHex = utils.HashString(tx.Hash)
 

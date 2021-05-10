@@ -40,7 +40,7 @@ func ParseMempool(startIdx int, txs []*model.Tx,
 	}
 
 	if IsSync {
-		serial.SyncBlockTxOutputInfo(txs)
+		serial.SyncBlockTxOutputInfo(startIdx, txs)
 	} else if IsDump {
 		serial.DumpBlockTx(txs)
 		serial.DumpBlockTxOutputInfo(txs)
@@ -53,9 +53,9 @@ func ParseMempool(startIdx int, txs []*model.Tx,
 	if WithUtxo {
 		if IsSync {
 			serial.ParseGetSpentUtxoDataFromRedisSerial(spentUtxoKeysMap, newUtxoDataMap, removeUtxoDataMap, spentUtxoDataMap)
-			serial.SyncBlockTxInputDetail(txs, newUtxoDataMap, removeUtxoDataMap, spentUtxoDataMap, mpTokenSummary)
+			serial.SyncBlockTxInputDetail(startIdx, txs, newUtxoDataMap, removeUtxoDataMap, spentUtxoDataMap, mpTokenSummary)
 
-			serial.SyncBlockTx(txs)
+			serial.SyncBlockTx(startIdx, txs)
 		} else if IsDump {
 			serial.DumpBlockTxInputDetail(txs, newUtxoDataMap, removeUtxoDataMap, spentUtxoDataMap)
 		}
