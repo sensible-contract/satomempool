@@ -2,7 +2,6 @@ package serial
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
 	"satomempool/model"
 	"satomempool/script"
@@ -171,10 +170,9 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 		// redis有序genesis utxo数据添加
 		if data.IsNFT {
 			// nft:utxo
-			nftId := make([]byte, 8)
-			binary.LittleEndian.PutUint64(nftId, data.DataValue) // 8
+			nftId := float64(data.DataValue)
 			if err := pipe.ZAdd(ctx, "mp:nu"+string(data.CodeHash)+string(data.GenesisId)+string(data.AddressPkh),
-				&redis.Z{Score: score, Member: key + string(nftId)}).Err(); err != nil {
+				&redis.Z{Score: nftId, Member: key}).Err(); err != nil {
 				panic(err)
 			}
 			// nft:owners
@@ -235,10 +233,8 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 		// redis有序genesis utxo数据清除
 		if data.IsNFT {
 			// nft:utxo
-			nftId := make([]byte, 8)
-			binary.LittleEndian.PutUint64(nftId, data.DataValue) // 8
 			if err := pipe.ZRem(ctx, "mp:nu"+string(data.CodeHash)+string(data.GenesisId)+string(data.AddressPkh),
-				key+string(nftId)).Err(); err != nil {
+				key).Err(); err != nil {
 				panic(err)
 			}
 
@@ -302,10 +298,9 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 		// redis有序genesis utxo数据添加
 		if data.IsNFT {
 			// nft:utxo
-			nftId := make([]byte, 8)
-			binary.LittleEndian.PutUint64(nftId, data.DataValue) // 8
+			nftId := float64(data.DataValue)
 			if err := pipe.ZAdd(ctx, "mp:s:nu"+string(data.CodeHash)+string(data.GenesisId)+string(data.AddressPkh),
-				&redis.Z{Score: score, Member: key + string(nftId)}).Err(); err != nil {
+				&redis.Z{Score: nftId, Member: key}).Err(); err != nil {
 				panic(err)
 			}
 			// nft:owners
