@@ -11,7 +11,6 @@ var (
 
 func init() {
 	CleanUtxoMap()
-	// loadUtxoFromGobFile()
 }
 
 func CleanUtxoMap() {

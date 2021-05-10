@@ -1,9 +1,8 @@
-package parser
+package utils
 
 import (
 	"encoding/binary"
 	"satomempool/model"
-	"satomempool/utils"
 )
 
 func NewTx(rawtx []byte) (tx *model.Tx, offset uint) {
@@ -16,7 +15,7 @@ func NewTx(rawtx []byte) (tx *model.Tx, offset uint) {
 	tx.Version = binary.LittleEndian.Uint32(rawtx[0:4])
 	offset = 4
 
-	txincnt, txincntsize := utils.DecodeVarIntForBlock(rawtx[offset:])
+	txincnt, txincntsize := DecodeVarIntForBlock(rawtx[offset:])
 	offset += txincntsize
 
 	tx.TxInCnt = uint32(txincnt)
@@ -36,7 +35,7 @@ func NewTx(rawtx []byte) (tx *model.Tx, offset uint) {
 		}
 	}
 
-	txoutcnt, txoutcntsize := utils.DecodeVarIntForBlock(rawtx[offset:])
+	txoutcnt, txoutcntsize := DecodeVarIntForBlock(rawtx[offset:])
 	offset += txoutcntsize
 
 	tx.TxOutCnt = uint32(txoutcnt)
@@ -71,11 +70,11 @@ func NewTxIn(txinraw []byte) (txin *model.TxIn, offset uint) {
 	}
 	txin = new(model.TxIn)
 	txin.InputHash = txinraw[0:32]
-	txin.InputHashHex = utils.HashString(txin.InputHash)
+	txin.InputHashHex = HashString(txin.InputHash)
 	txin.InputVout = binary.LittleEndian.Uint32(txinraw[32:36])
 	offset = 36
 
-	scriptsig, scriptsigsize := utils.DecodeVarIntForBlock(txinraw[offset:])
+	scriptsig, scriptsigsize := DecodeVarIntForBlock(txinraw[offset:])
 	offset += scriptsigsize
 
 	txin.ScriptSig = txinraw[offset : offset+scriptsig]
@@ -103,7 +102,7 @@ func NewTxOut(txoutraw []byte) (txout *model.TxOut, offset uint) {
 	txout.Satoshi = binary.LittleEndian.Uint64(txoutraw[0:8])
 	offset = 8
 
-	pkscript, pkscriptsize := utils.DecodeVarIntForBlock(txoutraw[offset:])
+	pkscript, pkscriptsize := DecodeVarIntForBlock(txoutraw[offset:])
 	offset += pkscriptsize
 
 	// invalid

@@ -10,7 +10,6 @@ import (
 	"os"
 	"runtime"
 	"satomempool/loader"
-	"satomempool/parser"
 	"satomempool/store"
 	"satomempool/task"
 	"satomempool/task/serial"
@@ -45,7 +44,7 @@ func init() {
 }
 
 func main() {
-	mempool, err := parser.NewMempool()
+	mempool, err := task.NewMempool()
 	if err != nil {
 		log.Printf("init chain error: %v", err)
 		return
@@ -87,15 +86,7 @@ func main() {
 			store.PreparePartSyncCk()
 
 			// 开始扫描区块，包括start，不包括end
-			task.ParseMempool(
-				startIdx,
-				mempool.BatchTxs,
-				mempool.TokenSummaryMap,
-				mempool.SpentUtxoKeysMap,
-				mempool.NewUtxoDataMap,
-				mempool.SpentUtxoDataMap,
-				mempool.RemoveUtxoDataMap,
-			)
+			mempool.ParseMempool(startIdx)
 
 			startIdx += len(mempool.BatchTxs)
 

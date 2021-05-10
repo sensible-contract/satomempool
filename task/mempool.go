@@ -1,12 +1,23 @@
-package parser
+package task
 
 import (
 	"log"
 	"satomempool/loader"
+	"satomempool/logger"
 	"satomempool/model"
+	"satomempool/store"
+	"satomempool/task/parallel"
+	"satomempool/task/serial"
 	"satomempool/utils"
 	"sync"
 	"time"
+)
+
+var (
+	IsSync   bool
+	IsDump   bool
+	WithUtxo bool
+	IsFull   bool
 )
 
 type Mempool struct {
@@ -60,7 +71,7 @@ func (mp *Mempool) LoadFromMempool() bool {
 			continue
 		}
 
-		tx, txoffset := NewTx(rawtx)
+		tx, txoffset := utils.NewTx(rawtx)
 		if int(txoffset) < len(rawtx) {
 			log.Println("rawtx decode failed")
 			continue
@@ -91,7 +102,7 @@ func (mp *Mempool) SyncMempoolFromZmq() {
 		}
 		firstGot = true
 
-		tx, txoffset := NewTx(rawtx)
+		tx, txoffset := utils.NewTx(rawtx)
 		if int(txoffset) < len(rawtx) {
 			continue
 		}
@@ -111,4 +122,52 @@ func (mp *Mempool) SyncMempoolFromZmq() {
 			return
 		}
 	}
+}
+
+// ParseMempool 先并行分析区块，不同区块并行，同区块内串行
+func (mp *Mempool) ParseMempool(startIdx int) {
+	// first
+	for txIdx, tx := range mp.BatchTxs {
+		parallel.ParseTxFirst(tx, mp.TokenSummaryMap)
+
+		if WithUtxo {
+			// 准备utxo花费关系数据
+			parallel.ParseTxoSpendByTxParallel(tx, mp.SpentUtxoKeysMap)
+			parallel.ParseNewUtxoInTxParallel(startIdx+txIdx, tx, mp.NewUtxoDataMap)
+		}
+	}
+
+	if IsSync {
+		serial.SyncBlockTxOutputInfo(startIdx, mp.BatchTxs)
+	} else if IsDump {
+		serial.DumpBlockTx(mp.BatchTxs)
+		serial.DumpBlockTxOutputInfo(mp.BatchTxs)
+		serial.DumpBlockTxInputInfo(mp.BatchTxs)
+	}
+
+	// second
+	serial.ParseBlockSpeed(len(mp.BatchTxs), len(serial.GlobalNewUtxoDataMap))
+
+	if WithUtxo {
+		if IsSync {
+			serial.ParseGetSpentUtxoDataFromRedisSerial(mp.SpentUtxoKeysMap, mp.NewUtxoDataMap, mp.RemoveUtxoDataMap, mp.SpentUtxoDataMap)
+			serial.SyncBlockTxInputDetail(startIdx, mp.BatchTxs, mp.NewUtxoDataMap, mp.RemoveUtxoDataMap, mp.SpentUtxoDataMap, mp.TokenSummaryMap)
+
+			serial.SyncBlockTx(startIdx, mp.BatchTxs)
+		} else if IsDump {
+			serial.DumpBlockTxInputDetail(mp.BatchTxs, mp.NewUtxoDataMap, mp.RemoveUtxoDataMap, mp.SpentUtxoDataMap)
+		}
+
+		// for txin dump
+		serial.UpdateUtxoInRedisSerial(mp.SpentUtxoKeysMap, mp.NewUtxoDataMap, mp.RemoveUtxoDataMap, mp.SpentUtxoDataMap)
+	}
+
+	// ParseEnd 最后分析执行
+	if IsSync {
+		store.CommitSyncCk()
+		store.CommitFullSyncCk(serial.SyncTxFullCount > 0)
+		store.ProcessPartSyncCk()
+	}
+
+	logger.SyncLog()
 }
