@@ -3,6 +3,7 @@ package serial
 import (
 	"context"
 	"fmt"
+	"log"
 	"satomempool/model"
 	"satomempool/script"
 
@@ -136,30 +137,46 @@ func UpdateUtxoInRedisSerial(
 }
 
 func FlushdbInRedis() {
-	rdb.FlushDB(ctx)
+	log.Println("FlushdbInRedis start")
+	keys, err := rdb.Keys(ctx, "mp:*").Result()
+	if err != nil {
+		log.Printf("FlushdbInRedis redis failed: %v", err)
+		return
+	}
+	log.Printf("FlushdbInRedis keys: %d", len(keys))
+
+	if len(keys) == 0 {
+		return
+	}
+	pipe := rdb.Pipeline()
+	for _, key := range keys {
+		pipe.Del(ctx, key)
+	}
+	_, err = pipe.Exec(ctx)
+	if err != nil {
+		panic(err)
+	}
+	log.Println("FlushdbInRedis finish")
+	// rdb.FlushDB(ctx)
 }
 
 // UpdateUtxoInRedis 批量更新redis utxo
 func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*model.TxoData) (err error) {
 	pipe := rdb.Pipeline()
+	pipeBlock := rdbBlock.Pipeline()
 	for key, data := range utxoToRestore {
 		buf := make([]byte, 20+len(data.Script))
 		data.Marshal(buf)
 		// redis全局utxo数据添加
-		pipe.Set(ctx, key, buf, 0)
+		pipeBlock.Set(ctx, key, buf, 0)
 		// redis有序utxo数据添加
 		score := float64(data.BlockHeight)*1000000000 + float64(data.TxIdx)
-		if err := pipe.ZAdd(ctx, "mp:utxo", &redis.Z{Score: score, Member: key}).Err(); err != nil {
-			panic(err)
-		}
-
-		if len(data.AddressPkh) < 20 || len(data.GenesisId) < 20 {
+		if len(data.AddressPkh) < 20 {
+			// 无法识别地址，只记录utxo
+			if err := pipe.ZAdd(ctx, "mp:utxo", &redis.Z{Score: score, Member: key}).Err(); err != nil {
+				panic(err)
+			}
 			continue
-		}
-
-		// redis有序address utxo数据添加
-		if err := pipe.ZAdd(ctx, "mp:au"+string(data.AddressPkh), &redis.Z{Score: score, Member: key}).Err(); err != nil {
-			panic(err)
 		}
 
 		// balance of address
@@ -167,14 +184,29 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 			panic(err)
 		}
 
+		if len(data.GenesisId) < 20 {
+			// 不是合约tx，则记录address utxo
+			// redis有序address utxo数据添加
+			if err := pipe.ZAdd(ctx, "mp:au"+string(data.AddressPkh), &redis.Z{Score: score, Member: key}).Err(); err != nil {
+				panic(err)
+			}
+			continue
+		}
+
 		// redis有序genesis utxo数据添加
 		if data.IsNFT {
-			// nft:utxo
 			nftId := float64(data.DataValue)
+			// nft:utxo
 			if err := pipe.ZAdd(ctx, "mp:nu"+string(data.CodeHash)+string(data.GenesisId)+string(data.AddressPkh),
 				&redis.Z{Score: nftId, Member: key}).Err(); err != nil {
 				panic(err)
 			}
+			// nft:utxo-detail
+			if err := pipe.ZAdd(ctx, "mp:nd"+string(data.CodeHash)+string(data.GenesisId),
+				&redis.Z{Score: nftId, Member: key}).Err(); err != nil {
+				panic(err)
+			}
+
 			// nft:owners
 			if err := pipe.ZIncrBy(ctx, "mp:no"+string(data.CodeHash)+string(data.GenesisId),
 				1, string(data.AddressPkh)).Err(); err != nil {
@@ -210,19 +242,14 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 	tokenToRemove := make(map[string]bool, 1)
 	for key, data := range utxoToRemove {
 		// redis全局utxo数据清除
-		pipe.Del(ctx, key)
+		pipeBlock.Del(ctx, key)
 		// redis有序utxo数据清除
-		if err := pipe.ZRem(ctx, "mp:utxo", key).Err(); err != nil {
-			panic(err)
-		}
-
-		if len(data.AddressPkh) < 20 || len(data.GenesisId) < 20 {
+		if len(data.AddressPkh) < 20 {
+			// 无法识别地址，只记录utxo
+			if err := pipe.ZRem(ctx, "mp:utxo", key).Err(); err != nil {
+				panic(err)
+			}
 			continue
-		}
-
-		// redis有序address utxo数据清除
-		if err := pipe.ZRem(ctx, "mp:au"+string(data.AddressPkh), key).Err(); err != nil {
-			panic(err)
 		}
 
 		// balance of address
@@ -230,10 +257,24 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 			panic(err)
 		}
 
+		if len(data.GenesisId) < 20 {
+			// 不是合约tx，则记录address utxo
+			// redis有序address utxo数据清除
+			if err := pipe.ZRem(ctx, "mp:au"+string(data.AddressPkh), key).Err(); err != nil {
+				panic(err)
+			}
+			continue
+		}
+
 		// redis有序genesis utxo数据清除
 		if data.IsNFT {
 			// nft:utxo
 			if err := pipe.ZRem(ctx, "mp:nu"+string(data.CodeHash)+string(data.GenesisId)+string(data.AddressPkh),
+				key).Err(); err != nil {
+				panic(err)
+			}
+			// nft:utxo-detail
+			if err := pipe.ZRem(ctx, "mp:nd"+string(data.CodeHash)+string(data.GenesisId),
 				key).Err(); err != nil {
 				panic(err)
 			}
@@ -273,21 +314,14 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 	}
 
 	for key, data := range utxoToSpend {
-		buf := make([]byte, 20+len(data.Script))
-		data.Marshal(buf)
 		// redis有序utxo数据添加
 		score := float64(data.BlockHeight)*1000000000 + float64(data.TxIdx)
-		if err := pipe.ZAdd(ctx, "mp:s:utxo", &redis.Z{Score: score, Member: key}).Err(); err != nil {
-			panic(err)
-		}
-
-		if len(data.AddressPkh) < 20 || len(data.GenesisId) < 20 {
+		if len(data.AddressPkh) < 20 {
+			// 无法识别地址，只记录utxo
+			if err := pipe.ZAdd(ctx, "mp:s:utxo", &redis.Z{Score: score, Member: key}).Err(); err != nil {
+				panic(err)
+			}
 			continue
-		}
-
-		// redis有序address utxo数据添加
-		if err := pipe.ZAdd(ctx, "mp:s:au"+string(data.AddressPkh), &redis.Z{Score: score, Member: key}).Err(); err != nil {
-			panic(err)
 		}
 
 		// balance of address
@@ -295,14 +329,29 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 			panic(err)
 		}
 
+		if len(data.GenesisId) < 20 {
+			// 不是合约tx，则记录address utxo
+			// redis有序address utxo数据添加
+			if err := pipe.ZAdd(ctx, "mp:s:au"+string(data.AddressPkh), &redis.Z{Score: score, Member: key}).Err(); err != nil {
+				panic(err)
+			}
+			continue
+		}
+
 		// redis有序genesis utxo数据添加
 		if data.IsNFT {
-			// nft:utxo
 			nftId := float64(data.DataValue)
+			// nft:utxo
 			if err := pipe.ZAdd(ctx, "mp:s:nu"+string(data.CodeHash)+string(data.GenesisId)+string(data.AddressPkh),
 				&redis.Z{Score: nftId, Member: key}).Err(); err != nil {
 				panic(err)
 			}
+			// nft:utxo-detail
+			if err := pipe.ZAdd(ctx, "mp:s:nd"+string(data.CodeHash)+string(data.GenesisId),
+				&redis.Z{Score: nftId, Member: key}).Err(); err != nil {
+				panic(err)
+			}
+
 			// nft:owners
 			if err := pipe.ZIncrBy(ctx, "mp:no"+string(data.CodeHash)+string(data.GenesisId),
 				-1, string(data.AddressPkh)).Err(); err != nil {
@@ -362,6 +411,10 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 	}
 
 	_, err = pipe.Exec(ctx)
+	if err != nil {
+		panic(err)
+	}
+	_, err = pipeBlock.Exec(ctx)
 	if err != nil {
 		panic(err)
 	}

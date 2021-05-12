@@ -3,18 +3,30 @@ package loader
 import (
 	"encoding/base64"
 	"encoding/hex"
+	"fmt"
 	"log"
 
+	"github.com/spf13/viper"
 	"github.com/ybbus/jsonrpc/v2"
 )
 
 var rpcClient jsonrpc.RPCClient
 
 func init() {
-	rpcAddress := "http://localhost:16332"
+	viper.SetConfigFile("conf/chain.yaml")
+	if err := viper.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			panic(fmt.Errorf("Fatal error config file: %s \n", err))
+		} else {
+			panic(fmt.Errorf("Fatal error config file: %s \n", err))
+		}
+	}
+
+	rpcAddress := viper.GetString("rpc")
+	rpcAuth := viper.GetString("rpc_auth")
 	rpcClient = jsonrpc.NewClientWithOpts(rpcAddress, &jsonrpc.RPCClientOpts{
 		CustomHeaders: map[string]string{
-			"Authorization": "Basic " + base64.StdEncoding.EncodeToString([]byte("jie"+":"+"jIang_jIe1234567")),
+			"Authorization": "Basic " + base64.StdEncoding.EncodeToString([]byte(rpcAuth)),
 		},
 	})
 }
