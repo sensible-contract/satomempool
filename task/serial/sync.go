@@ -25,6 +25,7 @@ func SyncBlockTx(startIdx int, txs []*model.Tx) {
 			tx.LockTime,
 			tx.InputsValue,
 			tx.OutputsValue,
+			string(tx.Raw),
 			model.MEMPOOL_HEIGHT, // uint32(block.Height),
 			"",                   // string(block.Hash),
 			uint64(startIdx+txIdx),

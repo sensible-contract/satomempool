@@ -11,6 +11,7 @@ import (
 const MEMPOOL_HEIGHT = 4294967295
 
 type Tx struct {
+	Raw          []byte
 	HashHex      string // 32
 	Hash         []byte // 32
 	Size         uint32

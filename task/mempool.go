@@ -77,6 +77,7 @@ func (mp *Mempool) LoadFromMempool() bool {
 			continue
 		}
 
+		tx.Raw = rawtx
 		tx.Size = uint32(txoffset)
 		tx.Hash = utils.GetHash256(rawtx)
 		tx.HashHex = utils.HashString(tx.Hash)
@@ -107,6 +108,7 @@ func (mp *Mempool) SyncMempoolFromZmq() {
 			continue
 		}
 
+		tx.Raw = rawtx
 		tx.Size = uint32(txoffset)
 		tx.Hash = utils.GetHash256(rawtx)
 		tx.HashHex = utils.HashString(tx.Hash)
