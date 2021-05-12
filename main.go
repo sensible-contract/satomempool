@@ -52,7 +52,7 @@ func main() {
 
 	// 监听新块确认
 	go func() {
-		loader.ZmqNotify(zmqEndpoint, mempool.RawTxNotify, mempool.BlockNotify)
+		loader.ZmqNotify(zmqEndpoint, mempool.RawTxNotify)
 	}()
 
 	// "0.0.0.0:8080"
@@ -70,39 +70,34 @@ func main() {
 				serial.CleanUtxoMap()
 				serial.FlushdbInRedis()
 
-				// 重新全量扫描
+				// 重新全量同步
 				mempool.LoadFromMempool()
 
 				// 删除mempool数据
 				store.ProcessAllSyncCk()
 			} else {
 				log.Printf("sync...")
-				// 现有追加扫描
-				mempool.SyncMempoolFromZmq()
+				// 现有追加同步
+				if blockReady := mempool.SyncMempoolFromZmq(); blockReady {
+					task.IsFull = true
+					continue
+				}
 			}
 
 			// 初始化同步数据库表
 			store.CreatePartSyncCk()
 			store.PreparePartSyncCk()
 
-			// 开始扫描区块，包括start，不包括end
+			// 开始同步mempool
 			mempool.ParseMempool(startIdx)
 
 			startIdx += len(mempool.BatchTxs)
 
+			// 同步完毕
 			log.Printf("finished")
-			// 扫描完毕
 
-			if task.IsSync {
-				// 等待新块出现，再重新追加扫描
-				task.IsFull = false
-				select {
-				case <-mempool.BlockNotify:
-					task.IsFull = true
-					log.Printf("new block...")
-				default:
-				}
-			} else {
+			task.IsFull = false
+			if !task.IsSync {
 				// 结束
 				ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 				defer cancel()

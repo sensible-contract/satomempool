@@ -12,9 +12,10 @@ import (
 )
 
 var (
-	rdb      *redis.Client
-	rdbBlock *redis.Client
-	ctx      = context.Background()
+	rdb                 *redis.Client
+	rdbBlock            *redis.Client
+	ctx                 = context.Background()
+	SubcribeBlockSynced *redis.PubSub
 )
 
 func init() {
@@ -54,6 +55,14 @@ func init() {
 		WriteTimeout: writeTimeout,
 		PoolSize:     poolSize,
 	})
+
+	SubcribeBlockSynced = rdbBlock.Subscribe(ctx, "channel_block_sync")
+}
+
+func SubcribeBlockSyncFinished() {
+	msg := <-SubcribeBlockSynced.Channel()
+	log.Println("redis subcribe:", msg.Channel)
+	log.Println("redissubcribe:", msg.Payload)
 }
 
 // ParseGetSpentUtxoDataFromRedisSerial 同步从redis中查询所需utxo信息来使用。稍慢但占用内存较少

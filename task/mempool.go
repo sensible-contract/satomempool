@@ -93,18 +93,40 @@ func (mp *Mempool) LoadFromMempool() bool {
 }
 
 // SyncMempoolFromZmq 从zmq同步tx
-func (mp *Mempool) SyncMempoolFromZmq() {
+func (mp *Mempool) SyncMempoolFromZmq() (blockReady bool) {
 	start := time.Now()
-
 	firstGot := false
-	for rawtx := range mp.RawTxNotify {
-		if !firstGot {
-			start = time.Now()
+	rawtx := make([]byte, 0)
+	for {
+		timeout := false
+		select {
+		case rawtx = <-mp.RawTxNotify:
+			if !firstGot {
+				start = time.Now()
+			}
+			firstGot = true
+		case msg := <-serial.SubcribeBlockSynced.Channel():
+			log.Println("redis subcribe:", msg.Channel)
+			log.Println("redissubcribe:", msg.Payload)
+			blockReady = true
+		case <-time.After(time.Second):
+			timeout = true
 		}
-		firstGot = true
+
+		if blockReady {
+			return true
+		}
+		if timeout {
+			if firstGot {
+				return false
+			} else {
+				continue
+			}
+		}
 
 		tx, txoffset := utils.NewTx(rawtx)
 		if int(txoffset) < len(rawtx) {
+			log.Println("skip bad rawtx")
 			continue
 		}
 
@@ -114,6 +136,7 @@ func (mp *Mempool) SyncMempoolFromZmq() {
 		tx.HashHex = utils.HashString(tx.Hash)
 
 		if ok := mp.Txs[tx.HashHex]; ok {
+			log.Println("skip dup")
 			continue
 		}
 
@@ -121,7 +144,8 @@ func (mp *Mempool) SyncMempoolFromZmq() {
 		mp.Txs[tx.HashHex] = true
 
 		if time.Since(start) > time.Second {
-			return
+			log.Println("after 1s")
+			return false
 		}
 	}
 }
