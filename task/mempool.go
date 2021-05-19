@@ -105,7 +105,7 @@ func (mp *Mempool) SyncMempoolFromZmq() (blockReady bool) {
 				start = time.Now()
 			}
 			firstGot = true
-		case msg := <-serial.SubcribeBlockSynced.Channel():
+		case msg := <-serial.ChannelBlockSynced:
 			log.Println("redis subcribe:", msg.Channel)
 			log.Println("redissubcribe:", msg.Payload)
 			blockReady = true

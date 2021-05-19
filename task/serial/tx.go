@@ -16,6 +16,7 @@ var (
 	rdbBlock            *redis.Client
 	ctx                 = context.Background()
 	SubcribeBlockSynced *redis.PubSub
+	ChannelBlockSynced  <-chan *redis.Message
 )
 
 func init() {
@@ -57,10 +58,11 @@ func init() {
 	})
 
 	SubcribeBlockSynced = rdbBlock.Subscribe(ctx, "channel_block_sync")
+	ChannelBlockSynced = SubcribeBlockSynced.Channel()
 }
 
 func SubcribeBlockSyncFinished() {
-	msg := <-SubcribeBlockSynced.Channel()
+	msg := <-ChannelBlockSynced
 	log.Println("redis subcribe:", msg.Channel)
 	log.Println("redissubcribe:", msg.Payload)
 }
