@@ -179,7 +179,7 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 		buf := make([]byte, 20+len(data.Script))
 		data.Marshal(buf)
 		// redis全局utxo数据添加
-		pipeBlock.Set(ctx, key, buf, 0)
+		pipeBlock.SetNX(ctx, key, buf, 0)
 		// redis有序utxo数据添加
 		score := float64(data.BlockHeight)*1000000000 + float64(data.TxIdx)
 		if len(data.AddressPkh) < 20 {
