@@ -6,3 +6,5 @@
 
 # bsv
 zmq: "tcp://192.168.31.236:16331"
+rpc: "http://localhost:16332"
+rpc_auth: "jie:jIang_jIe1234567"
