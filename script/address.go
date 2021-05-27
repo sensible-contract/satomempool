@@ -23,7 +23,7 @@ func ExtractPkScriptForTxo(txid, Pkscript, scriptType []byte) (isNFT bool, codeH
 	// 	return Pkscript[:]
 	// }
 
-	return ExtractPkScriptGenesisIdAndAddressPkh(txid, Pkscript)
+	return ExtractPkScriptGenesisIdAndAddressPkh(Pkscript)
 }
 
 func GetLockingScriptType(pkscript []byte) (scriptType []byte) {
