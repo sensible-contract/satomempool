@@ -5,11 +5,10 @@ import (
 	"encoding/hex"
 	"satomempool/model"
 	"satomempool/script"
-	"strconv"
 )
 
 // ParseTx 先并行分析交易tx，不同区块并行，同区块内串行
-func ParseTxFirst(tx *model.Tx, mpTokenSummary map[string]*model.TokenData) {
+func ParseTxFirst(tx *model.Tx) {
 	for idx, input := range tx.TxIns {
 		key := make([]byte, 36)
 		copy(key, tx.Hash)
@@ -37,33 +36,6 @@ func ParseTxFirst(tx *model.Tx, mpTokenSummary map[string]*model.TokenData) {
 
 		// test locking script
 		// output.LockingScriptMatch = true
-
-		// token summary
-		if len(output.CodeHash) == 20 && len(output.GenesisId) >= 20 {
-			NFTIdx := uint64(0)
-			key := string(output.CodeHash) + string(output.GenesisId)
-			if output.IsNFT {
-				key += strconv.Itoa(int(output.DataValue))
-				NFTIdx = output.DataValue
-			}
-			tokenSummary, ok := mpTokenSummary[key]
-			if !ok {
-				tokenSummary = &model.TokenData{
-					IsNFT:     output.IsNFT,
-					NFTIdx:    NFTIdx,
-					CodeHash:  output.CodeHash,
-					GenesisId: output.GenesisId,
-				}
-				mpTokenSummary[key] = tokenSummary
-			}
-
-			tokenSummary.OutSatoshi += output.Satoshi
-			if output.IsNFT {
-				tokenSummary.OutDataValue += 1
-			} else {
-				tokenSummary.OutDataValue += output.DataValue
-			}
-		}
 
 		if !script.IsOpreturn(output.LockingScriptType) {
 			output.LockingScriptMatch = true

@@ -13,11 +13,6 @@ import (
 	"time"
 )
 
-var (
-	IsSync   bool
-	WithUtxo bool
-)
-
 type Mempool struct {
 	BatchTxs []*model.Tx     // 所有Tx
 	Txs      map[string]bool // 所有Tx
@@ -29,7 +24,6 @@ type Mempool struct {
 	SpentUtxoDataMap  map[string]*model.TxoData
 	NewUtxoDataMap    map[string]*model.TxoData
 	RemoveUtxoDataMap map[string]*model.TxoData
-	TokenSummaryMap   map[string]*model.TokenData // key: CodeHash+GenesisId;  nft: CodeHash+GenesisId+tokenIdx
 
 	m sync.Mutex
 }
@@ -50,7 +44,6 @@ func (mp *Mempool) Init() {
 	mp.SpentUtxoDataMap = make(map[string]*model.TxoData, 1)
 	mp.NewUtxoDataMap = make(map[string]*model.TxoData, 1)
 	mp.RemoveUtxoDataMap = make(map[string]*model.TxoData, 1)
-	mp.TokenSummaryMap = make(map[string]*model.TokenData, 1) // key: CodeHash+GenesisId  nft: CodeHash+GenesisId+tokenIdx
 }
 
 func (mp *Mempool) LoadFromMempool() bool {
@@ -152,7 +145,7 @@ func (mp *Mempool) SyncMempoolFromZmq() (blockReady bool) {
 func (mp *Mempool) ParseMempool(startIdx int) {
 	// first
 	for txIdx, tx := range mp.BatchTxs {
-		parallel.ParseTxFirst(tx, mp.TokenSummaryMap)
+		parallel.ParseTxFirst(tx)
 
 		// 准备utxo花费关系数据
 		parallel.ParseTxoSpendByTxParallel(tx, mp.SpentUtxoKeysMap)
@@ -164,7 +157,7 @@ func (mp *Mempool) ParseMempool(startIdx int) {
 	serial.ParseBlockSpeed(len(mp.BatchTxs), len(serial.GlobalNewUtxoDataMap))
 
 	serial.ParseGetSpentUtxoDataFromRedisSerial(mp.SpentUtxoKeysMap, mp.NewUtxoDataMap, mp.RemoveUtxoDataMap, mp.SpentUtxoDataMap)
-	serial.SyncBlockTxInputDetail(startIdx, mp.BatchTxs, mp.NewUtxoDataMap, mp.RemoveUtxoDataMap, mp.SpentUtxoDataMap, mp.TokenSummaryMap)
+	serial.SyncBlockTxInputDetail(startIdx, mp.BatchTxs, mp.NewUtxoDataMap, mp.RemoveUtxoDataMap, mp.SpentUtxoDataMap)
 
 	serial.SyncBlockTx(startIdx, mp.BatchTxs)
 	// for txin dump

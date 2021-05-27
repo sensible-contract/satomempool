@@ -4,7 +4,6 @@ import (
 	"satomempool/logger"
 	"satomempool/model"
 	"satomempool/store"
-	"strconv"
 
 	"go.uber.org/zap"
 )
@@ -70,7 +69,7 @@ func SyncBlockTxOutputInfo(startIdx int, txs []*model.Tx) {
 }
 
 // SyncBlockTxInputDetail all tx input info
-func SyncBlockTxInputDetail(startIdx int, txs []*model.Tx, mpNewUtxo, removeUtxo, mpSpentUtxo map[string]*model.TxoData, mpTokenSummary map[string]*model.TokenData) {
+func SyncBlockTxInputDetail(startIdx int, txs []*model.Tx, mpNewUtxo, removeUtxo, mpSpentUtxo map[string]*model.TxoData) {
 	var commonObjData *model.TxoData = &model.TxoData{
 		CodeHash:   make([]byte, 1),
 		GenesisId:  make([]byte, 1),
@@ -98,34 +97,6 @@ func SyncBlockTxInputDetail(startIdx int, txs []*model.Tx, mpNewUtxo, removeUtxo
 				)
 			}
 			tx.InputsValue += objData.Satoshi
-
-			// token summary
-			if len(objData.CodeHash) == 20 && len(objData.GenesisId) >= 20 {
-				NFTIdx := uint64(0)
-				key := string(objData.CodeHash) + string(objData.GenesisId)
-				if objData.IsNFT {
-					key += strconv.Itoa(int(objData.DataValue))
-					NFTIdx = objData.DataValue
-				}
-
-				tokenSummary, ok := mpTokenSummary[key]
-				if !ok {
-					tokenSummary = &model.TokenData{
-						IsNFT:     objData.IsNFT,
-						NFTIdx:    NFTIdx,
-						CodeHash:  objData.CodeHash,
-						GenesisId: objData.GenesisId,
-					}
-					mpTokenSummary[key] = tokenSummary
-				}
-
-				tokenSummary.InSatoshi += objData.Satoshi
-				if objData.IsNFT {
-					tokenSummary.InDataValue += 1
-				} else {
-					tokenSummary.InDataValue += objData.DataValue
-				}
-			}
 
 			SyncTxFullCount++
 			if _, err := store.SyncStmtTxIn.Exec(
