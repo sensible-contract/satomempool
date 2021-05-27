@@ -16,7 +16,7 @@ func ZmqNotify(endpoint string, rawtx chan []byte) {
 	log.Printf("ZeroMQ started to listen for txs")
 
 	for {
-		msg, n, err := subscriber.RecvFrame()
+		msg, _, err := subscriber.RecvFrame()
 		if err != nil {
 			log.Printf("Error ZMQ RecFrame: %s", err)
 		}
@@ -32,7 +32,7 @@ func ZmqNotify(endpoint string, rawtx chan []byte) {
 		} else {
 			// rawtx
 			rawtx <- msg
-			log.Printf("tx received: %d, %d", n, len(msg))
+			// log.Printf("tx received: %d, %d", n, len(msg))
 		}
 	}
 }

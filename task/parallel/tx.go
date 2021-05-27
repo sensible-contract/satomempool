@@ -71,6 +71,7 @@ func ParseNewUtxoInTxParallel(txIdx int, tx *model.Tx, mpNewUtxo map[string]*mod
 		d.CodeHash = output.CodeHash
 		d.GenesisId = output.GenesisId
 		d.DataValue = output.DataValue
+		d.Decimal = output.Decimal
 		d.Satoshi = output.Satoshi
 		d.ScriptType = output.LockingScriptType
 		d.Script = output.Pkscript

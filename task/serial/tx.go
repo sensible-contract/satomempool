@@ -173,6 +173,8 @@ func FlushdbInRedis() {
 
 // UpdateUtxoInRedis 批量更新redis utxo
 func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*model.TxoData) (err error) {
+	log.Printf("UpdateUtxoInRedis store: %d, remove: %d, spend: %d",
+		len(utxoToRestore), len(utxoToRemove), len(utxoToSpend))
 	pipe := rdb.Pipeline()
 	pipeBlock := rdbBlock.Pipeline()
 	for key, data := range utxoToRestore {
@@ -207,6 +209,7 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 
 		// redis有序genesis utxo数据添加
 		if data.IsNFT {
+			log.Println("=== update nft")
 			nftId := float64(data.DataValue)
 			// nft:utxo
 			if err := pipe.ZAdd(ctx, "mp:nu"+string(data.CodeHash)+string(data.GenesisId)+string(data.AddressPkh),
@@ -231,8 +234,8 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 			}
 		} else {
 			// ft:info
-			pipe.HSetNX(ctx, "fi"+string(data.CodeHash)+string(data.GenesisId), "decimal", data.Decimal)
-			log.Println("update ft")
+			log.Println("=== update ft")
+			pipe.HSet(ctx, "fi"+string(data.CodeHash)+string(data.GenesisId), "decimal", data.Decimal)
 			// ft:utxo
 			if err := pipe.ZAdd(ctx, "mp:fu"+string(data.CodeHash)+string(data.GenesisId)+string(data.AddressPkh),
 				&redis.Z{Score: score, Member: key}).Err(); err != nil {

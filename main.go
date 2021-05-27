@@ -51,7 +51,7 @@ func main() {
 	}()
 
 	startIdx := 0
-	isFull := false
+	isFull := true
 	// 扫描区块
 	for {
 		mempool.Init()
@@ -86,7 +86,7 @@ func main() {
 		startIdx += len(mempool.BatchTxs)
 
 		// 同步完毕
-		log.Printf("finished")
+		log.Printf("%d finished. +%d", startIdx, len(mempool.BatchTxs))
 
 		isFull = false
 	}
