@@ -98,7 +98,6 @@ func (mp *Mempool) SyncMempoolFromZmq() (blockReady bool) {
 			firstGot = true
 		case msg := <-serial.ChannelBlockSynced:
 			log.Println("redis subcribe:", msg.Channel)
-			log.Println("redissubcribe:", msg.Payload)
 			blockReady = true
 		case <-time.After(time.Second):
 			timeout = true
@@ -153,8 +152,6 @@ func (mp *Mempool) ParseMempool(startIdx int) {
 	}
 
 	serial.SyncBlockTxOutputInfo(startIdx, mp.BatchTxs)
-	// second
-	serial.ParseBlockSpeed(len(mp.BatchTxs), len(serial.GlobalNewUtxoDataMap))
 
 	serial.ParseGetSpentUtxoDataFromRedisSerial(mp.SpentUtxoKeysMap, mp.NewUtxoDataMap, mp.RemoveUtxoDataMap, mp.SpentUtxoDataMap)
 	serial.SyncBlockTxInputDetail(startIdx, mp.BatchTxs, mp.NewUtxoDataMap, mp.RemoveUtxoDataMap, mp.SpentUtxoDataMap)
