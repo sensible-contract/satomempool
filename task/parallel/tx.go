@@ -33,7 +33,7 @@ func ParseTxFirst(tx *model.Tx, mpTokenSummary map[string]*model.TokenData) {
 		output.LockingScriptTypeHex = hex.EncodeToString(output.LockingScriptType)
 
 		// address
-		output.IsNFT, output.CodeHash, output.GenesisId, output.AddressPkh, output.DataValue = script.ExtractPkScriptForTxo(tx.Hash, output.Pkscript, output.LockingScriptType)
+		output.IsNFT, output.CodeHash, output.GenesisId, output.AddressPkh, output.DataValue, output.Decimal = script.ExtractPkScriptForTxo(tx.Hash, output.Pkscript, output.LockingScriptType)
 
 		// test locking script
 		// output.LockingScriptMatch = true
