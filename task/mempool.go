@@ -15,9 +15,7 @@ import (
 
 var (
 	IsSync   bool
-	IsDump   bool
 	WithUtxo bool
-	IsFull   bool
 )
 
 type Mempool struct {
@@ -156,44 +154,26 @@ func (mp *Mempool) ParseMempool(startIdx int) {
 	for txIdx, tx := range mp.BatchTxs {
 		parallel.ParseTxFirst(tx, mp.TokenSummaryMap)
 
-		if WithUtxo {
-			// 准备utxo花费关系数据
-			parallel.ParseTxoSpendByTxParallel(tx, mp.SpentUtxoKeysMap)
-			parallel.ParseNewUtxoInTxParallel(startIdx+txIdx, tx, mp.NewUtxoDataMap)
-		}
+		// 准备utxo花费关系数据
+		parallel.ParseTxoSpendByTxParallel(tx, mp.SpentUtxoKeysMap)
+		parallel.ParseNewUtxoInTxParallel(startIdx+txIdx, tx, mp.NewUtxoDataMap)
 	}
 
-	if IsSync {
-		serial.SyncBlockTxOutputInfo(startIdx, mp.BatchTxs)
-	} else if IsDump {
-		serial.DumpBlockTx(mp.BatchTxs)
-		serial.DumpBlockTxOutputInfo(mp.BatchTxs)
-		serial.DumpBlockTxInputInfo(mp.BatchTxs)
-	}
-
+	serial.SyncBlockTxOutputInfo(startIdx, mp.BatchTxs)
 	// second
 	serial.ParseBlockSpeed(len(mp.BatchTxs), len(serial.GlobalNewUtxoDataMap))
 
-	if WithUtxo {
-		if IsSync {
-			serial.ParseGetSpentUtxoDataFromRedisSerial(mp.SpentUtxoKeysMap, mp.NewUtxoDataMap, mp.RemoveUtxoDataMap, mp.SpentUtxoDataMap)
-			serial.SyncBlockTxInputDetail(startIdx, mp.BatchTxs, mp.NewUtxoDataMap, mp.RemoveUtxoDataMap, mp.SpentUtxoDataMap, mp.TokenSummaryMap)
+	serial.ParseGetSpentUtxoDataFromRedisSerial(mp.SpentUtxoKeysMap, mp.NewUtxoDataMap, mp.RemoveUtxoDataMap, mp.SpentUtxoDataMap)
+	serial.SyncBlockTxInputDetail(startIdx, mp.BatchTxs, mp.NewUtxoDataMap, mp.RemoveUtxoDataMap, mp.SpentUtxoDataMap, mp.TokenSummaryMap)
 
-			serial.SyncBlockTx(startIdx, mp.BatchTxs)
-		} else if IsDump {
-			serial.DumpBlockTxInputDetail(mp.BatchTxs, mp.NewUtxoDataMap, mp.RemoveUtxoDataMap, mp.SpentUtxoDataMap)
-		}
-
-		// for txin dump
-		serial.UpdateUtxoInRedisSerial(mp.SpentUtxoKeysMap, mp.NewUtxoDataMap, mp.RemoveUtxoDataMap, mp.SpentUtxoDataMap)
-	}
+	serial.SyncBlockTx(startIdx, mp.BatchTxs)
+	// for txin dump
+	serial.UpdateUtxoInRedisSerial(mp.SpentUtxoKeysMap, mp.NewUtxoDataMap, mp.RemoveUtxoDataMap, mp.SpentUtxoDataMap)
 
 	// ParseEnd 最后分析执行
-	if IsSync {
-		store.CommitSyncCk()
-		store.CommitFullSyncCk(serial.SyncTxFullCount > 0)
-		store.ProcessPartSyncCk()
-	}
+	store.CommitSyncCk()
+	store.CommitFullSyncCk(serial.SyncTxFullCount > 0)
+	store.ProcessPartSyncCk()
 
 	logger.SyncLog()
 }
