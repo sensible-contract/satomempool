@@ -230,6 +230,9 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 				panic(err)
 			}
 		} else {
+			// ft:info
+			pipe.HSetNX(ctx, "fi"+string(data.CodeHash)+string(data.GenesisId), "decimal", data.Decimal)
+			log.Println("update ft")
 			// ft:utxo
 			if err := pipe.ZAdd(ctx, "mp:fu"+string(data.CodeHash)+string(data.GenesisId)+string(data.AddressPkh),
 				&redis.Z{Score: score, Member: key}).Err(); err != nil {
