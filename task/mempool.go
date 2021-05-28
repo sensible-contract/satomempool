@@ -134,7 +134,6 @@ func (mp *Mempool) SyncMempoolFromZmq() (blockReady bool) {
 		mp.Txs[tx.HashHex] = true
 
 		if time.Since(start) > time.Second {
-			log.Println("after 1s")
 			return false
 		}
 	}

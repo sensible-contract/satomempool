@@ -68,7 +68,6 @@ func main() {
 			// 删除mempool数据
 			store.ProcessAllSyncCk()
 		} else {
-			log.Printf("sync...")
 			// 现有追加同步
 			if blockReady := mempool.SyncMempoolFromZmq(); blockReady {
 				isFull = true
