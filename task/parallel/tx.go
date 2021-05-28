@@ -32,7 +32,7 @@ func ParseTxFirst(tx *model.Tx) {
 		output.LockingScriptTypeHex = hex.EncodeToString(output.LockingScriptType)
 
 		// address
-		output.IsNFT, output.CodeHash, output.GenesisId, output.AddressPkh, output.DataValue, output.Decimal = script.ExtractPkScriptForTxo(tx.Hash, output.Pkscript, output.LockingScriptType)
+		output.IsNFT, output.CodeHash, output.GenesisId, output.AddressPkh, output.Name, output.Symbol, output.DataValue, output.Decimal = script.ExtractPkScriptForTxo(tx.Hash, output.Pkscript, output.LockingScriptType)
 
 		// test locking script
 		// output.LockingScriptMatch = true
@@ -72,6 +72,8 @@ func ParseNewUtxoInTxParallel(txIdx int, tx *model.Tx, mpNewUtxo map[string]*mod
 		d.GenesisId = output.GenesisId
 		d.DataValue = output.DataValue
 		d.Decimal = output.Decimal
+		d.Name = output.Name
+		d.Symbol = output.Symbol
 		d.Satoshi = output.Satoshi
 		d.ScriptType = output.LockingScriptType
 		d.Script = output.Pkscript

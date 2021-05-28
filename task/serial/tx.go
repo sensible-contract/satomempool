@@ -111,7 +111,7 @@ func ParseGetSpentUtxoDataFromRedisSerial(
 
 		// 补充数据
 		d.ScriptType = script.GetLockingScriptType(d.Script)
-		d.IsNFT, d.CodeHash, d.GenesisId, d.AddressPkh, d.DataValue, d.Decimal = script.ExtractPkScriptForTxo([]byte(key[:32]), d.Script, d.ScriptType)
+		d.IsNFT, d.CodeHash, d.GenesisId, d.AddressPkh, d.Name, d.Symbol, d.DataValue, d.Decimal = script.ExtractPkScriptForTxo([]byte(key[:32]), d.Script, d.ScriptType)
 
 		spentUtxoDataMap[key] = d
 	}
@@ -235,7 +235,11 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 		} else {
 			// ft:info
 			log.Println("=== update ft")
-			pipe.HSet(ctx, "fi"+string(data.CodeHash)+string(data.GenesisId), "decimal", data.Decimal)
+			pipe.HSet(ctx, "fi"+string(data.CodeHash)+string(data.GenesisId),
+				"decimal", data.Decimal,
+				"name", data.Name,
+				"symbol", data.Symbol,
+			)
 			// ft:utxo
 			if err := pipe.ZAdd(ctx, "mp:fu"+string(data.CodeHash)+string(data.GenesisId)+string(data.AddressPkh),
 				&redis.Z{Score: score, Member: key}).Err(); err != nil {
