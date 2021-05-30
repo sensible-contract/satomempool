@@ -13,7 +13,7 @@ var (
 )
 
 func init() {
-	viper.SetConfigFile("conf/dump.yaml")
+	viper.SetConfigFile("conf/log.yaml")
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
 			panic(fmt.Errorf("Fatal error config file: %s \n", err))
