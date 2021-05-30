@@ -9,14 +9,7 @@ import (
 )
 
 var (
-	Log    *zap.Logger
-	LogErr *zap.Logger
-
-	LogTx       *zap.Logger
-	LogTxIn     *zap.Logger
-	LogTxInFull *zap.Logger
-	LogTxOut    *zap.Logger
-	DEBUG       = true
+	Log *zap.Logger
 )
 
 func init() {
@@ -29,10 +22,7 @@ func init() {
 		}
 	}
 
-	dumpEncoding := viper.GetString("encoding")
 	logFile := viper.GetString("logFile")
-	pathPrefix := viper.GetString("pathPrefix")
-	pathSurfix := viper.GetString("pathSurfix")
 
 	zap.RegisterEncoder("row-binary", constructRowBinaryEncoder)
 	zap.RegisterEncoder("row-binary-debug", constructRowBinaryEncoderDebug)
@@ -44,45 +34,8 @@ func init() {
 		DisableStacktrace: true,
 		OutputPaths:       []string{logFile},
 	}.Build()
-
-	LogErr, _ = zap.Config{
-		Encoding:          "console",
-		Level:             zap.NewAtomicLevelAt(zapcore.DebugLevel),
-		DisableCaller:     true,
-		DisableStacktrace: true,
-		OutputPaths:       []string{"stderr"},
-	}.Build()
-
-	LogTx, _ = zap.Config{
-		Encoding:          dumpEncoding,
-		Level:             zap.NewAtomicLevelAt(zapcore.InfoLevel),
-		DisableCaller:     true,
-		DisableStacktrace: true,
-		OutputPaths:       []string{pathPrefix + "/tx" + pathSurfix},
-	}.Build()
-
-	LogTxIn, _ = zap.Config{
-		Encoding:          dumpEncoding,
-		Level:             zap.NewAtomicLevelAt(zapcore.InfoLevel),
-		DisableCaller:     true,
-		DisableStacktrace: true,
-		OutputPaths:       []string{pathPrefix + "/txin" + pathSurfix},
-	}.Build()
-
-	LogTxOut, _ = zap.Config{
-		Encoding:          dumpEncoding,
-		Level:             zap.NewAtomicLevelAt(zapcore.InfoLevel),
-		DisableCaller:     true,
-		DisableStacktrace: true,
-		OutputPaths:       []string{pathPrefix + "/txout" + pathSurfix},
-	}.Build()
-
 }
 
 func SyncLog() {
 	Log.Sync()
-	LogErr.Sync()
-	LogTx.Sync()
-	LogTxIn.Sync()
-	LogTxOut.Sync()
 }

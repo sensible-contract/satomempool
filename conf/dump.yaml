@@ -1,11 +1,2 @@
 
-# console/row-binary/row-binary-debug
-encoding: "row-binary-debug"
-
-# /home/jie/astudy/clickhouse
-pathPrefix: "/data256/mempool/"
-
-# .mgo
-pathSurfix: ".ch"
-
 logFile: "/data256/mempool/output.log"
