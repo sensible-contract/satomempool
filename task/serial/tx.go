@@ -2,6 +2,7 @@ package serial
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"log"
 	"satomempool/model"
@@ -187,24 +188,33 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 		score := float64(data.BlockHeight)*1000000000 + float64(data.TxIdx)
 		if len(data.AddressPkh) < 20 {
 			// 无法识别地址，只记录utxo
+			log.Printf("ZAdd mp:utxo, key: %s, score: %f", hex.EncodeToString([]byte(key)), score)
 			if err := pipe.ZAdd(ctx, "mp:utxo", &redis.Z{Score: score, Member: key}).Err(); err != nil {
 				panic(err)
 			}
 			continue
 		}
 
-		// balance of address
-		if err := pipe.ZIncrBy(ctx, "mp:balance", float64(data.Satoshi), string(data.AddressPkh)).Err(); err != nil {
-			panic(err)
-		}
-
 		if len(data.GenesisId) < 20 {
 			// 不是合约tx，则记录address utxo
 			// redis有序address utxo数据添加
+			log.Printf("ZAdd mp:au, address: %s, key: %s, score: %f", hex.EncodeToString(data.AddressPkh), hex.EncodeToString([]byte(key)), score)
 			if err := pipe.ZAdd(ctx, "mp:au"+string(data.AddressPkh), &redis.Z{Score: score, Member: key}).Err(); err != nil {
 				panic(err)
 			}
+
+			// balance of address
+			log.Printf("ZIncrBy mp:balance, address: %s, satoshi: %d", hex.EncodeToString(data.AddressPkh), data.Satoshi)
+			if err := pipe.ZIncrBy(ctx, "mp:balance", float64(data.Satoshi), string(data.AddressPkh)).Err(); err != nil {
+				panic(err)
+			}
 			continue
+		}
+
+		// contract balance of address
+		log.Printf("ZIncrBy mp:contract-balance, address: %s, satoshi: %d", hex.EncodeToString(data.AddressPkh), data.Satoshi)
+		if err := pipe.ZIncrBy(ctx, "mp:contract-balance", float64(data.Satoshi), string(data.AddressPkh)).Err(); err != nil {
+			panic(err)
 		}
 
 		// redis有序genesis utxo数据添加
@@ -274,18 +284,23 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 			continue
 		}
 
-		// balance of address
-		if err := pipe.ZIncrBy(ctx, "mp:balance", -float64(data.Satoshi), string(data.AddressPkh)).Err(); err != nil {
-			panic(err)
-		}
-
 		if len(data.GenesisId) < 20 {
 			// 不是合约tx，则记录address utxo
 			// redis有序address utxo数据清除
 			if err := pipe.ZRem(ctx, "mp:au"+string(data.AddressPkh), key).Err(); err != nil {
 				panic(err)
 			}
+
+			// balance of address
+			if err := pipe.ZIncrBy(ctx, "mp:balance", -float64(data.Satoshi), string(data.AddressPkh)).Err(); err != nil {
+				panic(err)
+			}
 			continue
+		}
+
+		// contract balance of address
+		if err := pipe.ZIncrBy(ctx, "mp:contract-balance", -float64(data.Satoshi), string(data.AddressPkh)).Err(); err != nil {
+			panic(err)
 		}
 
 		// redis有序genesis utxo数据清除
@@ -346,18 +361,23 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 			continue
 		}
 
-		// balance of address
-		if err := pipe.ZIncrBy(ctx, "mp:balance", -float64(data.Satoshi), string(data.AddressPkh)).Err(); err != nil {
-			panic(err)
-		}
-
 		if len(data.GenesisId) < 20 {
 			// 不是合约tx，则记录address utxo
 			// redis有序address utxo数据添加
 			if err := pipe.ZAdd(ctx, "mp:s:au"+string(data.AddressPkh), &redis.Z{Score: score, Member: key}).Err(); err != nil {
 				panic(err)
 			}
+
+			// balance of address
+			if err := pipe.ZIncrBy(ctx, "mp:balance", -float64(data.Satoshi), string(data.AddressPkh)).Err(); err != nil {
+				panic(err)
+			}
 			continue
+		}
+
+		// contract balance of address
+		if err := pipe.ZIncrBy(ctx, "mp:contract-balance", -float64(data.Satoshi), string(data.AddressPkh)).Err(); err != nil {
+			panic(err)
 		}
 
 		// redis有序genesis utxo数据添加
@@ -429,6 +449,10 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 	}
 	// 删除balance 为0的记录
 	if err := pipe.ZRemRangeByScore(ctx, "mp:balance", "0", "0").Err(); err != nil {
+		panic(err)
+	}
+
+	if err := pipe.ZRemRangeByScore(ctx, "mp:contract-balance", "0", "0").Err(); err != nil {
 		panic(err)
 	}
 
