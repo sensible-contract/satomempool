@@ -4,7 +4,8 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"satomempool/model"
-	"satomempool/script"
+
+	script "github.com/sensible-contract/sensible-script-decoder"
 )
 
 // ParseTx 先并行分析交易tx，不同区块并行，同区块内串行
@@ -32,7 +33,7 @@ func ParseTxFirst(tx *model.Tx) {
 		output.LockingScriptTypeHex = hex.EncodeToString(output.LockingScriptType)
 
 		// address
-		output.IsNFT, output.CodeHash, output.GenesisId, output.AddressPkh, output.Name, output.Symbol, output.DataValue, output.Decimal = script.ExtractPkScriptForTxo(tx.Hash, output.Pkscript, output.LockingScriptType)
+		output.IsNFT, output.CodeHash, output.GenesisId, output.AddressPkh, output.Name, output.Symbol, output.DataValue, output.Decimal = script.ExtractPkScriptForTxo(output.Pkscript, output.LockingScriptType)
 
 		// test locking script
 		// output.LockingScriptMatch = true

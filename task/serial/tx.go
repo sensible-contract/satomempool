@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"log"
 	"satomempool/model"
-	"satomempool/script"
 
 	redis "github.com/go-redis/redis/v8"
+	script "github.com/sensible-contract/sensible-script-decoder"
 	"github.com/spf13/viper"
 )
 
@@ -112,7 +112,7 @@ func ParseGetSpentUtxoDataFromRedisSerial(
 
 		// 补充数据
 		d.ScriptType = script.GetLockingScriptType(d.Script)
-		d.IsNFT, d.CodeHash, d.GenesisId, d.AddressPkh, d.Name, d.Symbol, d.DataValue, d.Decimal = script.ExtractPkScriptForTxo([]byte(key[:32]), d.Script, d.ScriptType)
+		d.IsNFT, d.CodeHash, d.GenesisId, d.AddressPkh, d.Name, d.Symbol, d.DataValue, d.Decimal = script.ExtractPkScriptForTxo(d.Script, d.ScriptType)
 
 		spentUtxoDataMap[key] = d
 	}
