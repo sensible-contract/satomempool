@@ -97,6 +97,16 @@ func (mp *Mempool) SyncMempoolFromZmq() (blockReady bool) {
 			}
 			firstGot = true
 		case msg := <-serial.ChannelBlockSynced:
+			loop := true
+			for loop {
+				select {
+				case <-serial.ChannelBlockSynced:
+					log.Printf(".")
+					loop = true
+				case <-time.After(time.Second):
+					loop = false
+				}
+			}
 			log.Println("redis subcribe:", msg.Channel)
 			blockReady = true
 		case <-time.After(time.Second):
@@ -133,7 +143,7 @@ func (mp *Mempool) SyncMempoolFromZmq() (blockReady bool) {
 		mp.BatchTxs = append(mp.BatchTxs, tx)
 		mp.Txs[tx.HashHex] = true
 
-		if time.Since(start) > time.Second {
+		if time.Since(start) > 200*time.Millisecond {
 			return false
 		}
 	}
