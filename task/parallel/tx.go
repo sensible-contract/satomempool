@@ -18,10 +18,6 @@ func ParseTxFirst(tx *model.Tx) {
 	}
 
 	for idx, output := range tx.TxOuts {
-		// if output.Satoshi == 0 {
-		// 	continue
-		// }
-
 		key := make([]byte, 36)
 		copy(key, tx.Hash)
 
@@ -35,11 +31,8 @@ func ParseTxFirst(tx *model.Tx) {
 		// address
 		output.IsNFT, output.CodeHash, output.GenesisId, output.AddressPkh, output.Name, output.Symbol, output.DataValue, output.Decimal = script.ExtractPkScriptForTxo(output.Pkscript, output.LockingScriptType)
 
-		// test locking script
-		// output.LockingScriptMatch = true
-
-		if !script.IsOpreturn(output.LockingScriptType) {
-			output.LockingScriptMatch = true
+		if script.IsOpreturn(output.LockingScriptType) {
+			output.LockingScriptUnspendable = true
 		}
 	}
 }
@@ -48,19 +41,13 @@ func ParseTxFirst(tx *model.Tx) {
 func ParseTxoSpendByTxParallel(tx *model.Tx, spentUtxoKeysMap map[string]bool) {
 	for _, input := range tx.TxIns {
 		spentUtxoKeysMap[input.InputOutpointKey] = true
-
-		// if _, ok := block.UtxoMap[input.InputOutpointKey]; !ok {
-		// 	block.UtxoMissingMap[input.InputOutpointKey] = true
-		// } else {
-		// 	delete(block.UtxoMap, input.InputOutpointKey)
-		// }
 	}
 }
 
 // ParseNewUtxoInTxParallel utxo 信息
 func ParseNewUtxoInTxParallel(txIdx int, tx *model.Tx, mpNewUtxo map[string]*model.TxoData) {
 	for _, output := range tx.TxOuts {
-		if output.Satoshi == 0 || !output.LockingScriptMatch {
+		if output.LockingScriptUnspendable {
 			continue
 		}
 
@@ -80,17 +67,5 @@ func ParseNewUtxoInTxParallel(txIdx int, tx *model.Tx, mpNewUtxo map[string]*mod
 		d.Script = output.Pkscript
 
 		mpNewUtxo[output.OutpointKey] = d
-
-		// if _, ok := block.UtxoMissingMap[output.OutpointKey]; ok {
-		// 	delete(block.UtxoMissingMap, output.OutpointKey)
-		// } else {
-		// 	block.UtxoMap[output.OutpointKey] = model.TxoData{
-		// 		BlockHeight: block.Height,
-		// 		Satoshi:     output.Satoshi,
-		// 		ScriptType:  output.LockingScriptType,
-		// 		AddressPkh:  output.AddressPkh,
-		// 		GenesisId:   output.GenesisId,
-		// 	}
-		// }
 	}
 }
