@@ -5,6 +5,7 @@ import (
 	"satomempool/model"
 	"satomempool/store"
 
+	scriptDecoder "github.com/sensible-contract/sensible-script-decoder"
 	"go.uber.org/zap"
 )
 
@@ -44,13 +45,21 @@ func SyncBlockTxOutputInfo(startIdx int, txs []*model.Tx) {
 		for vout, output := range tx.TxOuts {
 			tx.OutputsValue += output.Satoshi
 
+			var dataValue uint64
+			if output.CodeType == scriptDecoder.CodeType_NFT {
+				dataValue = output.TokenIdx
+			} else if output.CodeType == scriptDecoder.CodeType_FT {
+				dataValue = output.Amount
+			}
+
 			if _, err := store.SyncStmtTxOut.Exec(
 				string(tx.Hash),
 				uint32(vout),
 				string(output.AddressPkh), // 20 bytes
 				string(output.CodeHash),   // 20 bytes
 				string(output.GenesisId),  // 20/36/40 bytes
-				output.DataValue,
+				uint32(output.CodeType),
+				dataValue,
 				output.Satoshi,
 				string(output.LockingScriptType),
 				string(output.Pkscript),
@@ -97,6 +106,12 @@ func SyncBlockTxInputDetail(startIdx int, txs []*model.Tx, mpNewUtxo, removeUtxo
 				)
 			}
 			tx.InputsValue += objData.Satoshi
+			var dataValue uint64
+			if objData.CodeType == scriptDecoder.CodeType_NFT {
+				dataValue = objData.TokenIdx
+			} else if objData.CodeType == scriptDecoder.CodeType_FT {
+				dataValue = objData.Amount
+			}
 
 			SyncTxFullCount++
 			if _, err := store.SyncStmtTxIn.Exec(
@@ -114,7 +129,8 @@ func SyncBlockTxInputDetail(startIdx int, txs []*model.Tx, mpNewUtxo, removeUtxo
 				string(objData.AddressPkh), // 20 byte
 				string(objData.CodeHash),   // 20 byte
 				string(objData.GenesisId),  // 20 byte
-				objData.DataValue,
+				uint32(objData.CodeType),
+				dataValue,
 				objData.Satoshi,
 				string(objData.ScriptType),
 				string(objData.Script),

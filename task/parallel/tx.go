@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"satomempool/model"
 
-	script "github.com/sensible-contract/sensible-script-decoder"
+	scriptDecoder "github.com/sensible-contract/sensible-script-decoder"
 )
 
 // ParseTx 先并行分析交易tx，不同区块并行，同区块内串行
@@ -25,13 +25,21 @@ func ParseTxFirst(tx *model.Tx) {
 		output.OutpointKey = string(key)
 		output.Outpoint = key
 
-		output.LockingScriptType = script.GetLockingScriptType(output.Pkscript)
+		output.LockingScriptType = scriptDecoder.GetLockingScriptType(output.Pkscript)
 		output.LockingScriptTypeHex = hex.EncodeToString(output.LockingScriptType)
 
-		// address
-		output.IsNFT, output.CodeHash, output.GenesisId, output.AddressPkh, output.Name, output.Symbol, output.DataValue, output.Decimal = script.ExtractPkScriptForTxo(output.Pkscript, output.LockingScriptType)
+		txo := scriptDecoder.ExtractPkScriptForTxo(output.Pkscript, output.LockingScriptType)
+		output.CodeType = txo.CodeType
+		output.CodeHash = txo.CodeHash
+		output.GenesisId = txo.GenesisId
+		output.AddressPkh = txo.AddressPkh
+		output.Name = txo.Name
+		output.Symbol = txo.Symbol
+		output.TokenIdx = txo.TokenIdx
+		output.Amount = txo.Amount
+		output.Decimal = txo.Decimal
 
-		if script.IsOpreturn(output.LockingScriptType) {
+		if scriptDecoder.IsOpreturn(output.LockingScriptType) {
 			output.LockingScriptUnspendable = true
 		}
 	}
@@ -55,10 +63,11 @@ func ParseNewUtxoInTxParallel(txIdx int, tx *model.Tx, mpNewUtxo map[string]*mod
 		d.BlockHeight = model.MEMPOOL_HEIGHT
 		d.TxIdx = uint64(txIdx)
 		d.AddressPkh = output.AddressPkh
-		d.IsNFT = output.IsNFT
+		d.CodeType = output.CodeType
 		d.CodeHash = output.CodeHash
 		d.GenesisId = output.GenesisId
-		d.DataValue = output.DataValue
+		d.TokenIdx = output.TokenIdx
+		d.Amount = output.Amount
 		d.Decimal = output.Decimal
 		d.Name = output.Name
 		d.Symbol = output.Symbol

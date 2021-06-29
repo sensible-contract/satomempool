@@ -49,14 +49,17 @@ type TxOut struct {
 	Pkscript []byte
 
 	// other:
-	AddressPkh               []byte
-	IsNFT                    bool
-	CodeHash                 []byte
-	GenesisId                []byte
-	DataValue                uint64
-	Decimal                  uint64
-	Name                     string
-	Symbol                   string
+	AddressPkh []byte
+	CodeType   uint32
+	CodeHash   []byte
+	GenesisId  []byte
+
+	TokenIdx uint64 // nft tokenIdx
+	Amount   uint64 // ft amount
+	Decimal  uint64
+	Name     string
+	Symbol   string
+
 	Outpoint                 []byte // 32 + 4
 	OutpointKey              string // 32 + 4
 	LockingScriptType        []byte
@@ -96,10 +99,11 @@ type TxoData struct {
 	BlockHeight uint32
 	TxIdx       uint64
 	AddressPkh  []byte
-	IsNFT       bool
+	CodeType    uint32
 	CodeHash    []byte
 	GenesisId   []byte
-	DataValue   uint64 // ft amount / nft tokenIdx
+	TokenIdx    uint64 // nft tokenIdx
+	Amount      uint64 // ft amount
 	Decimal     uint64
 	Name        string
 	Symbol      string
@@ -115,7 +119,7 @@ func (d *TxoData) Marshal(buf []byte) {
 	copy(buf[20:], d.Script)                           // n
 }
 
-// no need marshal: ScriptType, IsNFT, CodeHash, GenesisId, AddressPkh, DataValue
+// no need marshal: ScriptType, CodeType, CodeHash, GenesisId, AddressPkh, DataValue
 func (d *TxoData) Unmarshal(buf []byte) {
 	d.BlockHeight = binary.LittleEndian.Uint32(buf[:4]) // 4
 	d.TxIdx = binary.LittleEndian.Uint64(buf[4:12])     // 8
