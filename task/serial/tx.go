@@ -117,6 +117,7 @@ func ParseGetSpentUtxoDataFromRedisSerial(
 		d.CodeType = txo.CodeType
 		d.CodeHash = txo.CodeHash
 		d.GenesisId = txo.GenesisId
+		d.SensibleId = txo.SensibleId
 		d.AddressPkh = txo.AddressPkh
 		d.Name = txo.Name
 		d.Symbol = txo.Symbol
@@ -259,6 +260,7 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 				"decimal", data.Decimal,
 				"name", data.Name,
 				"symbol", data.Symbol,
+				"sensibleid", data.SensibleId,
 			)
 			// ft:utxo
 			if err := pipe.ZAdd(ctx, "mp:fu"+string(data.CodeHash)+string(data.GenesisId)+string(data.AddressPkh),

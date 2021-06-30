@@ -53,6 +53,7 @@ type TxOut struct {
 	CodeType   uint32
 	CodeHash   []byte
 	GenesisId  []byte
+	SensibleId []byte
 
 	TokenIdx uint64 // nft tokenIdx
 	Amount   uint64 // ft amount
@@ -102,6 +103,7 @@ type TxoData struct {
 	CodeType    uint32
 	CodeHash    []byte
 	GenesisId   []byte
+	SensibleId  []byte
 	TokenIdx    uint64 // nft tokenIdx
 	Amount      uint64 // ft amount
 	Decimal     uint64
