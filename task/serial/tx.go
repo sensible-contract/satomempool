@@ -280,6 +280,14 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 				panic(err)
 			}
 		} else if data.CodeType == scriptDecoder.CodeType_UNIQUE {
+			// ft:info
+			log.Println("=== update unique")
+			pipe.HSet(ctx, "fi"+string(data.CodeHash)+string(data.GenesisId),
+				"decimal", data.Decimal,
+				"name", data.Name,
+				"symbol", data.Symbol,
+				"sensibleid", data.SensibleId,
+			)
 			// ft:utxo
 			if err := pipe.ZAdd(ctx, "mp:fu"+string(data.CodeHash)+string(data.GenesisId)+string(data.AddressPkh),
 				&redis.Z{Score: score, Member: key}).Err(); err != nil {
