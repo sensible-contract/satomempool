@@ -3,8 +3,10 @@ package store
 import (
 	"database/sql"
 	"fmt"
-	"log"
 	"satomempool/loader/clickhouse"
+	"satomempool/logger"
+
+	"go.uber.org/zap"
 )
 
 var (
@@ -30,34 +32,34 @@ func prepareSyncCk() bool {
 
 	syncTxTx, err = clickhouse.CK.Begin()
 	if err != nil {
-		log.Println("sync-begin-tx", err.Error())
+		logger.Log.Info("sync-begin-tx", zap.Error(err))
 		return false
 	}
 	SyncStmtTx, err = syncTxTx.Prepare(sqlTx)
 	if err != nil {
-		log.Println("sync-prepare-tx", err.Error())
+		logger.Log.Info("sync-prepare-tx", zap.Error(err))
 		return false
 	}
 
 	syncTxTxOut, err = clickhouse.CK.Begin()
 	if err != nil {
-		log.Println("sync-begin-txout", err.Error())
+		logger.Log.Info("sync-begin-txout", zap.Error(err))
 		return false
 	}
 	SyncStmtTxOut, err = syncTxTxOut.Prepare(sqlTxOut)
 	if err != nil {
-		log.Println("sync-prepare-txout", err.Error())
+		logger.Log.Info("sync-prepare-txout", zap.Error(err))
 		return false
 	}
 
 	syncTxTxIn, err = clickhouse.CK.Begin()
 	if err != nil {
-		log.Println("sync-begin-txinfull", err.Error())
+		logger.Log.Info("sync-begin-txinfull", zap.Error(err))
 		return false
 	}
 	SyncStmtTxIn, err = syncTxTxIn.Prepare(sqlTxIn)
 	if err != nil {
-		log.Println("sync-prepare-txinfull", err.Error())
+		logger.Log.Info("sync-prepare-txinfull", zap.Error(err))
 		return false
 	}
 
@@ -73,10 +75,10 @@ func CommitSyncCk() {
 	defer SyncStmtTxOut.Close()
 
 	if err := syncTxTx.Commit(); err != nil {
-		log.Println("sync-commit-tx", err.Error())
+		logger.Log.Info("sync-commit-tx", zap.Error(err))
 	}
 	if err := syncTxTxOut.Commit(); err != nil {
-		log.Println("sync-commit-txout", err.Error())
+		logger.Log.Info("sync-commit-txout", zap.Error(err))
 	}
 }
 
@@ -89,6 +91,6 @@ func CommitFullSyncCk(needCommit bool) {
 	}
 
 	if err := syncTxTxIn.Commit(); err != nil {
-		log.Println("sync-commit-txinfull", err.Error())
+		logger.Log.Info("sync-commit-txinfull", zap.Error(err))
 	}
 }

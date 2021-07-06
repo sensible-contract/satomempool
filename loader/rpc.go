@@ -4,10 +4,11 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"log"
+	"satomempool/logger"
 
 	"github.com/spf13/viper"
 	"github.com/ybbus/jsonrpc/v2"
+	"go.uber.org/zap"
 )
 
 var rpcClient jsonrpc.RPCClient
@@ -34,18 +35,18 @@ func init() {
 func GetRawMemPoolRPC() []interface{} {
 	response, err := rpcClient.Call("getrawmempool", []string{})
 	if err != nil {
-		log.Println("call failed:", err)
+		logger.Log.Info("call failed", zap.Error(err))
 		return nil
 	}
 
 	if response.Error != nil {
-		log.Println("Receive remote return:", response)
+		logger.Log.Info("Receive remote return", zap.Any("response", response))
 		return nil
 	}
 
 	txids, ok := response.Result.([]interface{})
 	if !ok {
-		log.Printf("mempool not list: %T", response.Result)
+		logger.Log.Info("mempool not list: %T", zap.Any("response", response.Result))
 		return nil
 	}
 	return txids
@@ -54,24 +55,24 @@ func GetRawMemPoolRPC() []interface{} {
 func GetRawTxRPC(txid interface{}) []byte {
 	response, err := rpcClient.Call("getrawtransaction", []interface{}{txid})
 	if err != nil {
-		log.Println("call failed:", err)
+		logger.Log.Info("call failed", zap.Error(err))
 		return nil
 	}
 
 	if response.Error != nil {
-		log.Println("Receive remote return:", response)
+		logger.Log.Info("Receive remote return", zap.Any("response", response))
 		return nil
 	}
 
 	rawtxString, ok := response.Result.(string)
 	if !ok {
-		log.Println("mempool entry not string")
+		logger.Log.Info("mempool entry not string")
 		return nil
 	}
 
 	rawtx, err := hex.DecodeString(rawtxString)
 	if err != nil {
-		log.Println("rawtx hex err:", rawtxString[:64])
+		logger.Log.Info("rawtx hex err", zap.String("rawtx[:64]", rawtxString[:64]))
 		return nil
 	}
 

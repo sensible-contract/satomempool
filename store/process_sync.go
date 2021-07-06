@@ -1,8 +1,10 @@
 package store
 
 import (
-	"log"
 	"satomempool/loader/clickhouse"
+	"satomempool/logger"
+
+	"go.uber.org/zap"
 )
 
 var (
@@ -73,7 +75,7 @@ func ProcessSyncCk(processSQLs []string) bool {
 			partLen = 128
 		}
 		if _, err := clickhouse.CK.Exec(psql); err != nil {
-			log.Println("sync exec err", psql[:partLen], err.Error())
+			logger.Log.Info("sync exec err", zap.String("sql", psql[:partLen]), zap.Error(err))
 			return false
 		}
 	}

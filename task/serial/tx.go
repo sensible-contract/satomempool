@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"log"
+	"satomempool/logger"
 	"satomempool/model"
 
 	redis "github.com/go-redis/redis/v8"
 	scriptDecoder "github.com/sensible-contract/sensible-script-decoder"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 )
 
 var (
@@ -64,8 +65,9 @@ func init() {
 
 func SubcribeBlockSyncFinished() {
 	msg := <-ChannelBlockSynced
-	log.Println("redis subcribe:", msg.Channel)
-	log.Println("redissubcribe:", msg.Payload)
+	logger.Log.Info("redis subcribe",
+		zap.String("channel", msg.Channel),
+		zap.String("payload", msg.Payload))
 }
 
 // ParseGetSpentUtxoDataFromRedisSerial 同步从redis中查询所需utxo信息来使用。稍慢但占用内存较少
@@ -160,13 +162,13 @@ func UpdateUtxoInRedisSerial(
 }
 
 func FlushdbInRedis() {
-	log.Println("FlushdbInRedis start")
+	logger.Log.Info("FlushdbInRedis start")
 	keys, err := rdb.Keys(ctx, "mp:*").Result()
 	if err != nil {
-		log.Printf("FlushdbInRedis redis failed: %v", err)
+		logger.Log.Info("FlushdbInRedis redis failed", zap.Error(err))
 		return
 	}
-	log.Printf("FlushdbInRedis keys: %d", len(keys))
+	logger.Log.Info("FlushdbInRedis", zap.Int("nKeys", len(keys)))
 
 	if len(keys) == 0 {
 		return
@@ -179,14 +181,16 @@ func FlushdbInRedis() {
 	if err != nil {
 		panic(err)
 	}
-	log.Println("FlushdbInRedis finish")
+	logger.Log.Info("FlushdbInRedis finish")
 	// rdb.FlushDB(ctx)
 }
 
 // UpdateUtxoInRedis 批量更新redis utxo
 func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*model.TxoData) (err error) {
-	log.Printf("UpdateUtxoInRedis store: %d, remove: %d, spend: %d",
-		len(utxoToRestore), len(utxoToRemove), len(utxoToSpend))
+	logger.Log.Info("UpdateUtxoInRedis",
+		zap.Int("nStore", len(utxoToRestore)),
+		zap.Int("nRemove", len(utxoToRemove)),
+		zap.Int("nSpend", len(utxoToSpend)))
 	pipe := rdb.Pipeline()
 	pipeBlock := rdbBlock.Pipeline()
 	for key, data := range utxoToRestore {
@@ -199,7 +203,7 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 		score := float64(data.BlockHeight)*1000000000 + float64(data.TxIdx)
 		if len(data.AddressPkh) < 20 {
 			// 无法识别地址，只记录utxo
-			log.Printf("ZAdd mp:utxo, key: %s, score: %f", hex.EncodeToString([]byte(key)), score)
+			logger.Log.Info("ZAdd mp:utxo", zap.String("key", hex.EncodeToString([]byte(key))), zap.Float64("score", score))
 			if err := pipe.ZAdd(ctx, "mp:utxo", &redis.Z{Score: score, Member: key}).Err(); err != nil {
 				panic(err)
 			}
@@ -209,13 +213,18 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 		if len(data.GenesisId) < 20 {
 			// 不是合约tx，则记录address utxo
 			// redis有序address utxo数据添加
-			log.Printf("ZAdd mp:au, address: %s, key: %s, score: %f", hex.EncodeToString(data.AddressPkh), hex.EncodeToString([]byte(key)), score)
+			logger.Log.Info("ZAdd mp:au",
+				zap.String("addrHex", hex.EncodeToString(data.AddressPkh)),
+				zap.String("key", hex.EncodeToString([]byte(key))),
+				zap.Float64("score", score))
 			if err := pipe.ZAdd(ctx, "mp:au"+string(data.AddressPkh), &redis.Z{Score: score, Member: key}).Err(); err != nil {
 				panic(err)
 			}
 
 			// balance of address
-			log.Printf("ZIncrBy mp:balance, address: %s, satoshi: %d", hex.EncodeToString(data.AddressPkh), data.Satoshi)
+			logger.Log.Info("ZIncrBy mp:balance",
+				zap.String("addrHex", hex.EncodeToString(data.AddressPkh)),
+				zap.Uint64("satoshi", data.Satoshi))
 			if err := pipe.ZIncrBy(ctx, "mp:balance", float64(data.Satoshi), string(data.AddressPkh)).Err(); err != nil {
 				panic(err)
 			}
@@ -223,14 +232,16 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 		}
 
 		// contract balance of address
-		log.Printf("ZIncrBy mp:contract-balance, address: %s, satoshi: %d", hex.EncodeToString(data.AddressPkh), data.Satoshi)
+		logger.Log.Info("ZIncrBy mp:contract-balance",
+			zap.String("addrHex", hex.EncodeToString(data.AddressPkh)),
+			zap.Uint64("satoshi", data.Satoshi))
 		if err := pipe.ZIncrBy(ctx, "mp:contract-balance", float64(data.Satoshi), string(data.AddressPkh)).Err(); err != nil {
 			panic(err)
 		}
 
 		// redis有序genesis utxo数据添加
 		if data.CodeType == scriptDecoder.CodeType_NFT {
-			log.Println("=== update nft")
+			logger.Log.Info("=== update nft")
 			nftId := float64(data.TokenIdx)
 			// nft:utxo
 			if err := pipe.ZAdd(ctx, "mp:nu"+string(data.CodeHash)+string(data.GenesisId)+string(data.AddressPkh),
@@ -255,7 +266,7 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 			}
 		} else if data.CodeType == scriptDecoder.CodeType_FT {
 			// ft:info
-			log.Println("=== update ft")
+			logger.Log.Info("=== update ft")
 			pipe.HSet(ctx, "fi"+string(data.CodeHash)+string(data.GenesisId),
 				"decimal", data.Decimal,
 				"name", data.Name,
@@ -281,7 +292,7 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 			}
 		} else if data.CodeType == scriptDecoder.CodeType_UNIQUE {
 			// ft:info
-			log.Println("=== update unique")
+			logger.Log.Info("=== update unique")
 			pipe.HSet(ctx, "fi"+string(data.CodeHash)+string(data.GenesisId),
 				"decimal", data.Decimal,
 				"name", data.Name,

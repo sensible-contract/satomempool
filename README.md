@@ -31,10 +31,6 @@ redis配置，主要包括address、database等。
 
 需要占用2个database号，database_block存放UTXO原始script，database存放UTXO集合key。需要和satoblock配置保持一致。
 
-* log.yaml
-
-日志文件路径配置。
-
 ## 运行方式
 
 直接启动程序即可。此时日志会直接输出到终端。

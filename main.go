@@ -2,16 +2,17 @@ package main
 
 import (
 	"fmt"
-	"log"
 	_ "net/http/pprof"
 	"runtime"
 	"satomempool/loader"
+	"satomempool/logger"
 	"satomempool/store"
 	"satomempool/task"
 	"satomempool/task/serial"
 	"time"
 
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 )
 
 var (
@@ -34,7 +35,7 @@ func init() {
 func main() {
 	mempool, err := task.NewMempool()
 	if err != nil {
-		log.Printf("init chain error: %v", err)
+		logger.Log.Info("init chain error: %v", zap.Error(err))
 		return
 	}
 
@@ -57,7 +58,7 @@ func main() {
 		mempool.Init()
 
 		if isFull {
-			log.Printf("full sync...")
+			logger.Log.Info("full sync...")
 			startIdx = 0
 			serial.CleanUtxoMap()
 			serial.FlushdbInRedis()
@@ -85,7 +86,7 @@ func main() {
 		startIdx += len(mempool.BatchTxs)
 
 		// 同步完毕
-		log.Printf("%d finished. +%d", startIdx, len(mempool.BatchTxs))
+		logger.Log.Info("finished.", zap.Int("idx", startIdx), zap.Int("nNewTx", len(mempool.BatchTxs)))
 
 		isFull = false
 	}

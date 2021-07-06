@@ -1,7 +1,6 @@
 package task
 
 import (
-	"log"
 	"satomempool/loader"
 	"satomempool/logger"
 	"satomempool/model"
@@ -11,6 +10,8 @@ import (
 	"satomempool/utils"
 	"sync"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 type Mempool struct {
@@ -64,7 +65,7 @@ func (mp *Mempool) LoadFromMempool() bool {
 
 		tx, txoffset := utils.NewTx(rawtx)
 		if int(txoffset) < len(rawtx) {
-			log.Println("rawtx decode failed")
+			logger.Log.Info("rawtx decode failed")
 			continue
 		}
 
@@ -98,16 +99,17 @@ func (mp *Mempool) SyncMempoolFromZmq() (blockReady bool) {
 			firstGot = true
 		case msg := <-serial.ChannelBlockSynced:
 			loop := true
+			nblk := 1
 			for loop {
 				select {
 				case <-serial.ChannelBlockSynced:
-					log.Printf(".")
+					nblk++
 					loop = true
 				case <-time.After(time.Second):
 					loop = false
 				}
 			}
-			log.Println("redis subcribe:", msg.Channel)
+			logger.Log.Info("redis subcribe", zap.Int("nblk", nblk), zap.String("channel", msg.Channel))
 			blockReady = true
 		case <-time.After(time.Second):
 			timeout = true
@@ -126,7 +128,7 @@ func (mp *Mempool) SyncMempoolFromZmq() (blockReady bool) {
 
 		tx, txoffset := utils.NewTx(rawtx)
 		if int(txoffset) < len(rawtx) {
-			log.Println("skip bad rawtx")
+			logger.Log.Info("skip bad rawtx")
 			continue
 		}
 
@@ -136,7 +138,7 @@ func (mp *Mempool) SyncMempoolFromZmq() (blockReady bool) {
 		tx.HashHex = utils.HashString(tx.Hash)
 
 		if ok := mp.Txs[tx.HashHex]; ok {
-			log.Println("skip dup")
+			logger.Log.Info("skip dup")
 			continue
 		}
 

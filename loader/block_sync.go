@@ -3,9 +3,11 @@ package loader
 import (
 	"database/sql"
 	"errors"
-	"log"
 	"satomempool/loader/clickhouse"
+	"satomempool/logger"
 	"satomempool/model"
+
+	"go.uber.org/zap"
 )
 
 func blockResultSRF(rows *sql.Rows) (interface{}, error) {
@@ -22,7 +24,7 @@ func GetLatestBlocks() (blksRsp []*model.BlockDO, err error) {
 
 	blksRet, err := clickhouse.ScanAll(psql, blockResultSRF)
 	if err != nil {
-		log.Printf("query blk failed: %v", err)
+		logger.Log.Info("query blk failed", zap.Error(err))
 		return nil, err
 	}
 	if blksRet == nil {

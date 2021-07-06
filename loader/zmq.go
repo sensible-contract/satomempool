@@ -2,8 +2,10 @@ package loader
 
 import (
 	"log"
+	"satomempool/logger"
 
 	"github.com/zeromq/goczmq"
+	"go.uber.org/zap"
 )
 
 func ZmqNotify(endpoint string, rawtx chan []byte) {
@@ -13,26 +15,26 @@ func ZmqNotify(endpoint string, rawtx chan []byte) {
 		log.Fatal(err)
 	}
 
-	log.Printf("ZeroMQ started to listen for txs")
+	logger.Log.Info("ZeroMQ started to listen for txs")
 
 	for {
 		msg, _, err := subscriber.RecvFrame()
 		if err != nil {
-			log.Printf("Error ZMQ RecFrame: %s", err)
+			logger.Log.Info("Error ZMQ RecFrame: %s", zap.Error(err))
 		}
 
 		if len(msg) == 4 {
 			// id
-			// log.Printf("id: %d, %d", n, binary.LittleEndian.Uint32(msg))
+			// logger.Log.Info("id: %d, %d", zap.Int("n", n), zap.Int("id", binary.LittleEndian.Uint32(msg)))
 
 		} else if len(msg) == 5 || len(msg) == 6 || len(msg) == 9 {
 			// topic
-			// log.Printf("sub received: %d, %s", n, string(msg))
+			// logger.Log.Info("sub received", zap.Int("n", n), zap.String("topic", string(msg)))
 
 		} else {
 			// rawtx
 			rawtx <- msg
-			// log.Printf("tx received: %d, %d", n, len(msg))
+			// logger.Log.Info("tx received", zap.Int("n", n), zap.Int("rawtxLen", len(msg)))
 		}
 	}
 }
