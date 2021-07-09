@@ -47,7 +47,7 @@ func SyncBlockTxOutputInfo(startIdx int, txs []*model.Tx) {
 
 			var dataValue uint64
 			if output.CodeType == scriptDecoder.CodeType_NFT {
-				dataValue = output.TokenIdx
+				dataValue = output.TokenIndex
 			} else if output.CodeType == scriptDecoder.CodeType_FT {
 				dataValue = output.Amount
 			}
@@ -108,7 +108,7 @@ func SyncBlockTxInputDetail(startIdx int, txs []*model.Tx, mpNewUtxo, removeUtxo
 			tx.InputsValue += objData.Satoshi
 			var dataValue uint64
 			if objData.CodeType == scriptDecoder.CodeType_NFT {
-				dataValue = objData.TokenIdx
+				dataValue = objData.TokenIndex
 			} else if objData.CodeType == scriptDecoder.CodeType_FT {
 				dataValue = objData.Amount
 			}

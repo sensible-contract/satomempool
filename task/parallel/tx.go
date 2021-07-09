@@ -36,7 +36,7 @@ func ParseTxFirst(tx *model.Tx) {
 		output.AddressPkh = txo.AddressPkh
 		output.Name = txo.Name
 		output.Symbol = txo.Symbol
-		output.TokenIdx = txo.TokenIdx
+		output.TokenIndex = txo.TokenIndex
 		output.Amount = txo.Amount
 		output.Decimal = txo.Decimal
 
@@ -68,7 +68,7 @@ func ParseNewUtxoInTxParallel(txIdx int, tx *model.Tx, mpNewUtxo map[string]*mod
 		d.CodeHash = output.CodeHash
 		d.GenesisId = output.GenesisId
 		d.SensibleId = output.SensibleId
-		d.TokenIdx = output.TokenIdx
+		d.TokenIndex = output.TokenIndex
 		d.Amount = output.Amount
 		d.Decimal = output.Decimal
 		d.Name = output.Name

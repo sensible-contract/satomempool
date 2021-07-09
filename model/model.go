@@ -55,11 +55,11 @@ type TxOut struct {
 	GenesisId  []byte
 	SensibleId []byte
 
-	TokenIdx uint64 // nft tokenIdx
-	Amount   uint64 // ft amount
-	Decimal  uint64
-	Name     string
-	Symbol   string
+	TokenIndex uint64 // nft tokenIndex
+	Amount     uint64 // ft amount
+	Decimal    uint64
+	Name       string
+	Symbol     string
 
 	Outpoint                 []byte // 32 + 4
 	OutpointKey              string // 32 + 4
@@ -104,7 +104,7 @@ type TxoData struct {
 	CodeHash    []byte
 	GenesisId   []byte
 	SensibleId  []byte
-	TokenIdx    uint64 // nft tokenIdx
+	TokenIndex  uint64 // nft tokenIndex
 	Amount      uint64 // ft amount
 	Decimal     uint64
 	Name        string

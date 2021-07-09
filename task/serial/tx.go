@@ -123,7 +123,7 @@ func ParseGetSpentUtxoDataFromRedisSerial(
 		d.AddressPkh = txo.AddressPkh
 		d.Name = txo.Name
 		d.Symbol = txo.Symbol
-		d.TokenIdx = txo.TokenIdx
+		d.TokenIndex = txo.TokenIndex
 		d.Amount = txo.Amount
 		d.Decimal = txo.Decimal
 
@@ -242,7 +242,7 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 		// redis有序genesis utxo数据添加
 		if data.CodeType == scriptDecoder.CodeType_NFT {
 			logger.Log.Info("=== update nft")
-			nftId := float64(data.TokenIdx)
+			nftId := float64(data.TokenIndex)
 			// nft:utxo
 			if err := pipe.ZAdd(ctx, "mp:nu"+string(data.CodeHash)+string(data.GenesisId)+string(data.AddressPkh),
 				&redis.Z{Score: nftId, Member: key}).Err(); err != nil {
@@ -424,7 +424,7 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 
 		// redis有序genesis utxo数据添加
 		if data.CodeType == scriptDecoder.CodeType_NFT {
-			nftId := float64(data.TokenIdx)
+			nftId := float64(data.TokenIndex)
 			// nft:utxo
 			if err := pipe.ZAdd(ctx, "mp:s:nu"+string(data.CodeHash)+string(data.GenesisId)+string(data.AddressPkh),
 				&redis.Z{Score: nftId, Member: key}).Err(); err != nil {
