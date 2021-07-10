@@ -1,7 +1,6 @@
 package loader
 
 import (
-	"log"
 	"satomempool/logger"
 
 	"github.com/zeromq/goczmq"
@@ -9,13 +8,13 @@ import (
 )
 
 func ZmqNotify(endpoint string, rawtx chan []byte) {
-	subscriber, err := goczmq.NewSub(endpoint, "rawtx")
-	defer subscriber.Destroy()
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	logger.Log.Info("ZeroMQ started to listen for txs")
+	subscriber, err := goczmq.NewSub(endpoint, "rawtx")
+	if err != nil {
+		logger.Log.Fatal("ZMQ connect failed", zap.Error(err))
+		return
+	}
+	defer subscriber.Destroy()
 
 	for {
 		msg, _, err := subscriber.RecvFrame()
