@@ -17,6 +17,7 @@ import (
 type Mempool struct {
 	BatchTxs []*model.Tx     // 所有Tx
 	Txs      map[string]bool // 所有Tx
+	SkipTxs  map[string]bool // 需要跳过的Tx
 
 	BlockNotify chan []byte
 	RawTxNotify chan []byte
@@ -39,7 +40,6 @@ func NewMempool() (mp *Mempool, err error) {
 }
 
 func (mp *Mempool) Init() {
-	mp.Txs = make(map[string]bool, 0)
 	mp.BatchTxs = make([]*model.Tx, 0)
 	mp.SpentUtxoKeysMap = make(map[string]bool, 1)
 	mp.SpentUtxoDataMap = make(map[string]*model.TxoData, 1)
@@ -49,6 +49,9 @@ func (mp *Mempool) Init() {
 
 func (mp *Mempool) LoadFromMempool() bool {
 	// 清空
+	mp.Txs = make(map[string]bool, 0)
+	mp.SkipTxs = make(map[string]bool, 0)
+
 	for i := 0; i < 1000; i++ {
 		select {
 		case <-mp.RawTxNotify:
@@ -65,7 +68,7 @@ func (mp *Mempool) LoadFromMempool() bool {
 
 		tx, txoffset := utils.NewTx(rawtx)
 		if int(txoffset) < len(rawtx) {
-			logger.Log.Info("rawtx decode failed")
+			logger.Log.Info("skip bad rawtx")
 			continue
 		}
 
@@ -74,12 +77,20 @@ func (mp *Mempool) LoadFromMempool() bool {
 		tx.Hash = utils.GetHash256(rawtx)
 		tx.HashHex = utils.HashString(tx.Hash)
 
-		if ok := mp.Txs[tx.HashHex]; ok {
+		if utils.IsTxNonFinal(tx, mp.SkipTxs) {
+			logger.Log.Info("skip non final tx",
+				zap.String("txid", tx.HashHex),
+			)
+			mp.SkipTxs[tx.HashHex] = true
 			continue
 		}
 
-		mp.BatchTxs = append(mp.BatchTxs, tx)
+		if ok := mp.Txs[tx.HashHex]; ok {
+			logger.Log.Info("skip dup")
+			continue
+		}
 		mp.Txs[tx.HashHex] = true
+		mp.BatchTxs = append(mp.BatchTxs, tx)
 	}
 	return true
 }
@@ -137,13 +148,20 @@ func (mp *Mempool) SyncMempoolFromZmq() (blockReady bool) {
 		tx.Hash = utils.GetHash256(rawtx)
 		tx.HashHex = utils.HashString(tx.Hash)
 
+		if utils.IsTxNonFinal(tx, mp.SkipTxs) {
+			logger.Log.Info("skip non final tx",
+				zap.String("txid", tx.HashHex),
+			)
+			mp.SkipTxs[tx.HashHex] = true
+			continue
+		}
+
 		if ok := mp.Txs[tx.HashHex]; ok {
 			logger.Log.Info("skip dup")
 			continue
 		}
-
-		mp.BatchTxs = append(mp.BatchTxs, tx)
 		mp.Txs[tx.HashHex] = true
+		mp.BatchTxs = append(mp.BatchTxs, tx)
 
 		if time.Since(start) > 200*time.Millisecond {
 			return false

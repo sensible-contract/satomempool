@@ -4,6 +4,8 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"math"
+	"satomempool/model"
 )
 
 func DecodeVarIntForBlock(raw []byte) (cnt uint, cnt_size uint) {
@@ -39,4 +41,31 @@ func HashString(data []byte) (res string) {
 	}
 
 	return hex.EncodeToString(reverseData)
+}
+
+func isTxFinal(tx *model.Tx) bool {
+	if tx.LockTime == 0 {
+		return true
+	}
+
+	isFinal := true
+	for _, input := range tx.TxIns {
+		if input.Sequence != math.MaxUint32 {
+			isFinal = false
+		}
+	}
+	return isFinal
+}
+
+func IsTxNonFinal(tx *model.Tx, nonFinalTxs map[string]bool) bool {
+	if !isTxFinal(tx) {
+		return true
+	}
+
+	for _, input := range tx.TxIns {
+		if _, ok := nonFinalTxs[input.InputHashHex]; ok {
+			return true
+		}
+	}
+	return false
 }
