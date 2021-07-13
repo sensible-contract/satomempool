@@ -1,0 +1,13 @@
+version: '3'
+services:
+
+   satomempool:
+     build: .
+     image: satomempool:latest
+     volumes:
+       - ./conf:/data/conf:ro
+     restart: always
+     logging:
+       driver: "local"
+       options:
+         max-size: "5g"
