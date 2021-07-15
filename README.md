@@ -31,6 +31,16 @@ redis配置，主要包括address、database等。
 
 需要占用2个database号，database_block存放UTXO原始script，database存放UTXO集合key。需要和satoblock配置保持一致。
 
+## Docker
+
+使用docker-compose可以比较方便运行satomempool。首先设置好db/redis/node配置，然后运行：
+
+	$ docker-compose up -d
+
+停止请执行：
+
+	$ docker-compose stop
+
 ## 运行方式
 
 直接启动程序即可。此时日志会直接输出到终端。
