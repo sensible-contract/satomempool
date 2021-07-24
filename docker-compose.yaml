@@ -6,8 +6,12 @@ services:
      image: satomempool:latest
      volumes:
        - ./conf:/data/conf:ro
+     labels:
+       - "name=satomempool"
      restart: always
      logging:
-       driver: "local"
+       driver: "json-file"
        options:
-         max-size: "5g"
+         labels: "name"
+         max-size: "1g"
+         max-file: "3"
