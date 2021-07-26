@@ -3,7 +3,7 @@ services:
 
    satomempool:
      build: .
-     image: satomempool:rdbc-v1.0
+     image: satomempool:rdbc-v2
      volumes:
        - ./conf:/data/conf:ro
      labels:
