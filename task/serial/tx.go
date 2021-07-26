@@ -15,7 +15,6 @@ import (
 
 var (
 	rdbc                *redis.ClusterClient
-	rdb                 *redis.Client
 	ctx                 = context.Background()
 	SubcribeBlockSynced *redis.PubSub
 	ChannelBlockSynced  <-chan *redis.Message
@@ -150,7 +149,7 @@ func UpdateUtxoInRedisSerial(
 
 func FlushdbInRedis() {
 	logger.Log.Info("FlushdbInRedis start")
-	keys, err := rdb.SMembers(ctx, "mp:keys").Result()
+	keys, err := rdbc.SMembers(ctx, "mp:keys").Result()
 	if err != nil {
 		logger.Log.Info("FlushdbInRedis redis failed", zap.Error(err))
 		return
@@ -160,7 +159,7 @@ func FlushdbInRedis() {
 	if len(keys) == 0 {
 		return
 	}
-	pipe := rdb.Pipeline()
+	pipe := rdbc.Pipeline()
 	for _, key := range keys {
 		pipe.Del(ctx, key)
 	}
