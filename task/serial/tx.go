@@ -343,7 +343,6 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 	tokenToRemove := make(map[string]bool, 1)
 	for key, data := range utxoToRemove {
 		// redis全局utxo数据清除
-		// fixme: need remove?
 		pipe.Del(ctx, "u"+key)
 		// redis有序utxo数据清除
 		if len(data.AddressPkh) < 20 {
@@ -470,6 +469,9 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 	}
 
 	for key, data := range utxoToSpend {
+		// redis全局utxo数据不能在这里清除，留给区块确认时去做
+		// pipe.Del(ctx, "u"+key)
+
 		// redis有序utxo数据添加
 		score := float64(data.BlockHeight)*1000000000 + float64(data.TxIdx)
 		if len(data.AddressPkh) < 20 {
