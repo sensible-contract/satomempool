@@ -55,11 +55,17 @@ type TxOut struct {
 	GenesisId  []byte
 	SensibleId []byte
 
-	TokenIndex uint64 // nft tokenIndex
-	Amount     uint64 // ft amount
-	Decimal    uint64
-	Name       string
-	Symbol     string
+	// nft
+	MetaTxId        []byte
+	MetaOutputIndex uint32
+	TokenIndex      uint64
+	TokenSupply     uint64
+
+	// ft
+	Amount  uint64
+	Decimal uint64
+	Name    string
+	Symbol  string
 
 	Outpoint                 []byte // 32 + 4
 	OutpointKey              string // 32 + 4
@@ -104,14 +110,22 @@ type TxoData struct {
 	CodeHash    []byte
 	GenesisId   []byte
 	SensibleId  []byte
-	TokenIndex  uint64 // nft tokenIndex
-	Amount      uint64 // ft amount
-	Decimal     uint64
-	Name        string
-	Symbol      string
-	Satoshi     uint64
-	ScriptType  []byte
-	Script      []byte
+
+	// nft
+	MetaTxId        []byte
+	MetaOutputIndex uint32
+	TokenIndex      uint64
+	TokenSupply     uint64
+
+	// ft
+	Name    string
+	Symbol  string
+	Amount  uint64
+	Decimal uint64
+
+	Satoshi    uint64
+	ScriptType []byte
+	Script     []byte
 }
 
 func (d *TxoData) Marshal(buf []byte) {
