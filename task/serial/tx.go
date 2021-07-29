@@ -326,7 +326,9 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 	tokenToRemove := make(map[string]bool, 1)
 	for key, data := range utxoToRemove {
 		// redis全局utxo数据清除
-		pipeBlock.Del(ctx, key)
+		// 可能有问题，暂时不清除
+		// pipeBlock.Del(ctx, key)
+
 		// redis有序utxo数据清除
 		if len(data.AddressPkh) < 20 {
 			// 无法识别地址，只记录utxo
