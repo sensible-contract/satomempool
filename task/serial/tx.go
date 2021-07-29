@@ -77,7 +77,7 @@ func ParseGetSpentUtxoDataFromRedisSerial(
 		}
 
 		needExec = true
-		m[key] = pipe.Get(ctx, key)
+		m[key] = pipe.Get(ctx, "u"+key)
 	}
 
 	if !needExec {
@@ -358,7 +358,9 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 	tokenToRemove := make(map[string]bool, 1)
 	for key, data := range utxoToRemove {
 		// redis全局utxo数据清除
-		pipe.Del(ctx, "u"+key)
+		// 暂时不清除
+		// pipe.Del(ctx, "u"+key)
+
 		// redis有序utxo数据清除
 		if len(data.AddressPkh) < 20 {
 			// 无法识别地址，暂不记录utxo
