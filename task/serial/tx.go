@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	rdbc                *redis.ClusterClient
+	rdb                 *redis.ClusterClient
 	ctx                 = context.Background()
 	SubcribeBlockSynced *redis.PubSub
 	ChannelBlockSynced  <-chan *redis.Message
@@ -36,7 +36,7 @@ func init() {
 	readTimeout := viper.GetDuration("readTimeout")
 	writeTimeout := viper.GetDuration("writeTimeout")
 	poolSize := viper.GetInt("poolSize")
-	rdbc = redis.NewClusterClient(&redis.ClusterOptions{
+	rdb = redis.NewClusterClient(&redis.ClusterOptions{
 		Addrs:        clusterAddrs,
 		Password:     password,
 		DialTimeout:  dialTimeout,
@@ -45,7 +45,7 @@ func init() {
 		PoolSize:     poolSize,
 	})
 
-	SubcribeBlockSynced = rdbc.Subscribe(ctx, "channel_block_sync")
+	SubcribeBlockSynced = rdb.Subscribe(ctx, "channel_block_sync")
 	ChannelBlockSynced = SubcribeBlockSynced.Channel()
 }
 
@@ -63,7 +63,7 @@ func ParseGetSpentUtxoDataFromRedisSerial(
 	spentUtxoKeysMap map[string]bool,
 	newUtxoDataMap, removeUtxoDataMap, spentUtxoDataMap map[string]*model.TxoData) {
 
-	pipe := rdbc.Pipeline()
+	pipe := rdb.Pipeline()
 	m := map[string]*redis.StringCmd{}
 	needExec := false
 	for key := range spentUtxoKeysMap {
@@ -156,7 +156,7 @@ func UpdateUtxoInRedisSerial(
 
 func FlushdbInRedis() {
 	logger.Log.Info("FlushdbInRedis start")
-	keys, err := rdbc.SMembers(ctx, "mp:keys").Result()
+	keys, err := rdb.SMembers(ctx, "mp:keys").Result()
 	if err != nil {
 		logger.Log.Info("FlushdbInRedis redis failed", zap.Error(err))
 		return
@@ -166,7 +166,7 @@ func FlushdbInRedis() {
 	if len(keys) == 0 {
 		return
 	}
-	pipe := rdbc.Pipeline()
+	pipe := rdb.Pipeline()
 	for _, key := range keys {
 		pipe.Del(ctx, key)
 	}
@@ -185,7 +185,7 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 		zap.Int("nRemove", len(utxoToRemove)),
 		zap.Int("nSpend", len(utxoToSpend)))
 	mpkey := ""
-	pipe := rdbc.Pipeline()
+	pipe := rdb.Pipeline()
 	for key, data := range utxoToRestore {
 		buf := make([]byte, 20+len(data.Script))
 		data.Marshal(buf)
