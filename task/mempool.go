@@ -173,26 +173,47 @@ func (mp *Mempool) SyncMempoolFromZmq() (blockReady bool) {
 func (mp *Mempool) ParseMempool(startIdx int) {
 	// first
 	for txIdx, tx := range mp.BatchTxs {
+		// no dep, 准备utxo花费关系数据
+		parallel.ParseTxoSpendByTxParallel(tx, mp.SpentUtxoKeysMap)
+
+		// 0
 		parallel.ParseTxFirst(tx)
 
-		// 准备utxo花费关系数据
-		parallel.ParseTxoSpendByTxParallel(tx, mp.SpentUtxoKeysMap)
+		// 1 dep 0
 		parallel.ParseNewUtxoInTxParallel(startIdx+txIdx, tx, mp.NewUtxoDataMap)
 	}
 
+	// 2 dep 0
 	serial.SyncBlockTxOutputInfo(startIdx, mp.BatchTxs)
 
+	// 3 dep 1
 	serial.ParseGetSpentUtxoDataFromRedisSerial(mp.SpentUtxoKeysMap, mp.NewUtxoDataMap, mp.RemoveUtxoDataMap, mp.SpentUtxoDataMap)
+	// 4 dep 3
 	serial.SyncBlockTxInputDetail(startIdx, mp.BatchTxs, mp.NewUtxoDataMap, mp.RemoveUtxoDataMap, mp.SpentUtxoDataMap)
 
+	// 5 dep 2 4
 	serial.SyncBlockTx(startIdx, mp.BatchTxs)
-	// for txin dump
-	serial.UpdateUtxoInRedisSerial(mp.SpentUtxoKeysMap, mp.NewUtxoDataMap, mp.RemoveUtxoDataMap, mp.SpentUtxoDataMap)
 
-	// ParseEnd 最后分析执行
-	store.CommitSyncCk()
-	store.CommitFullSyncCk(serial.SyncTxFullCount > 0)
-	store.ProcessPartSyncCk()
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		// for txin dump
+		// 6 dep 2 4
+		serial.UpdateUtxoInRedisSerial(mp.SpentUtxoKeysMap, mp.NewUtxoDataMap, mp.RemoveUtxoDataMap, mp.SpentUtxoDataMap)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		// ParseEnd 最后分析执行
+		// 7 dep 5
+		store.CommitSyncCk()
+		store.CommitFullSyncCk(serial.SyncTxFullCount > 0)
+		store.ProcessPartSyncCk()
+	}()
+
+	wg.Wait()
 
 	logger.SyncLog()
 }
