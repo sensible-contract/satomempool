@@ -14,7 +14,8 @@ import (
 )
 
 var (
-	rdb                 *redis.Client
+	useCluster          bool
+	rdb                 redis.UniversalClient
 	ctx                 = context.Background()
 	SubcribeBlockSynced *redis.PubSub
 	ChannelBlockSynced  <-chan *redis.Message
@@ -30,15 +31,15 @@ func init() {
 		}
 	}
 
-	address := viper.GetString("address")
+	addrs := viper.GetStringSlice("addrs")
 	password := viper.GetString("password")
 	database := viper.GetInt("database")
 	dialTimeout := viper.GetDuration("dialTimeout")
 	readTimeout := viper.GetDuration("readTimeout")
 	writeTimeout := viper.GetDuration("writeTimeout")
 	poolSize := viper.GetInt("poolSize")
-	rdb = redis.NewClient(&redis.Options{
-		Addr:         address,
+	rdb = redis.NewUniversalClient(&redis.UniversalOptions{
+		Addrs:        addrs,
 		Password:     password,
 		DB:           database,
 		DialTimeout:  dialTimeout,
@@ -46,6 +47,10 @@ func init() {
 		WriteTimeout: writeTimeout,
 		PoolSize:     poolSize,
 	})
+
+	if len(addrs) > 1 {
+		useCluster = true
+	}
 
 	SubcribeBlockSynced = rdb.Subscribe(ctx, "channel_block_sync")
 	ChannelBlockSynced = SubcribeBlockSynced.Channel()
