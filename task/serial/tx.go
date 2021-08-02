@@ -191,23 +191,26 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 		zap.Int("nStore", len(utxoToRestore)),
 		zap.Int("nRemove", len(utxoToRemove)),
 		zap.Int("nSpend", len(utxoToSpend)))
-	mpkey := ""
+	mpkeys := make([]string, 5*(len(utxoToRestore)+len(utxoToRemove)+len(utxoToSpend)))
 	pipe := rdb.Pipeline()
-	for key, data := range utxoToRestore {
+	for outpointKey, data := range utxoToRestore {
 		buf := make([]byte, 20+len(data.Script))
 		data.Marshal(buf)
 		// redis全局utxo数据添加
 		// fixme: 会覆盖satoblock？
-		pipe.SetNX(ctx, "u"+key, buf, 0)
+		pipe.SetNX(ctx, "u"+outpointKey, buf, 0)
+
+		strAddressPkh := string(data.AddressPkh)
+		strCodeHash := string(data.CodeHash)
+		strGenesisId := string(data.GenesisId)
+
 		// redis有序utxo数据添加
-		score := float64(data.BlockHeight)*1000000000 + float64(data.TxIdx)
+		member := &redis.Z{Score: float64(data.BlockHeight)*1000000000 + float64(data.TxIdx), Member: outpointKey}
 		if len(data.AddressPkh) < 20 {
 			// 无法识别地址，暂不记录utxo
-			logger.Log.Info("ignore mp:utxo", zap.String("key", hex.EncodeToString([]byte(key))), zap.Float64("score", score))
-			// logger.Log.Info("ZAdd mp:utxo", zap.String("key", hex.EncodeToString([]byte(key))), zap.Float64("score", score))
-			// if err := pipe.ZAdd(ctx, "mp:utxo", &redis.Z{Score: score, Member: key}).Err(); err != nil {
-			// 	panic(err)
-			// }
+			logger.Log.Info("ignore mp:utxo", zap.String("key", hex.EncodeToString([]byte(outpointKey))), zap.Float64("score", member.Score))
+			// logger.Log.Info("ZAdd mp:utxo", zap.String("key", hex.EncodeToString([]byte(outpointKey))), zap.Float64("score", member.Score))
+			// pipe.ZAdd(ctx, "mp:utxo", member)
 			continue
 		}
 
@@ -216,28 +219,19 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 			// redis有序address utxo数据添加
 			logger.Log.Info("ZAdd mp:au",
 				zap.String("addrHex", hex.EncodeToString(data.AddressPkh)),
-				zap.String("key", hex.EncodeToString([]byte(key))),
-				zap.Float64("score", score))
-			mpkey = "mp:{au" + string(data.AddressPkh) + "}"
-			if err := pipe.ZAdd(ctx, mpkey, &redis.Z{Score: score, Member: key}).Err(); err != nil {
-				panic(err)
-			}
-
-			if err := pipe.SAdd(ctx, "mp:keys", mpkey).Err(); err != nil {
-				panic(err)
-			}
+				zap.String("key", hex.EncodeToString([]byte(outpointKey))),
+				zap.Float64("score", member.Score))
+			mpkeyAU := "mp:{au" + strAddressPkh + "}"
+			pipe.ZAdd(ctx, mpkeyAU, member)
 
 			// balance of address
 			logger.Log.Info("IncrBy mp:bl",
 				zap.String("addrHex", hex.EncodeToString(data.AddressPkh)),
 				zap.Uint64("satoshi", data.Satoshi))
-			mpkey = "mp:bl" + string(data.AddressPkh)
-			if err := pipe.IncrBy(ctx, mpkey, int64(data.Satoshi)).Err(); err != nil {
-				panic(err)
-			}
-			if err := pipe.SAdd(ctx, "mp:keys", mpkey).Err(); err != nil {
-				panic(err)
-			}
+			mpkeyBL := "mp:bl" + strAddressPkh
+			pipe.IncrBy(ctx, mpkeyBL, int64(data.Satoshi))
+
+			mpkeys = append(mpkeys, mpkeyAU, mpkeyBL)
 			continue
 		}
 
@@ -245,109 +239,69 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 		logger.Log.Info("IncrBy mp:cb",
 			zap.String("addrHex", hex.EncodeToString(data.AddressPkh)),
 			zap.Uint64("satoshi", data.Satoshi))
-		mpkey = "mp:cb" + string(data.AddressPkh)
-		if err := pipe.IncrBy(ctx, mpkey, int64(data.Satoshi)).Err(); err != nil {
-			panic(err)
-		}
-		if err := pipe.SAdd(ctx, "mp:keys", mpkey).Err(); err != nil {
-			panic(err)
-		}
+		mpkeyCB := "mp:cb" + strAddressPkh
+		pipe.IncrBy(ctx, mpkeyCB, int64(data.Satoshi))
+		mpkeys = append(mpkeys, mpkeyCB)
 
 		// redis有序genesis utxo数据添加
 		if data.CodeType == scriptDecoder.CodeType_NFT {
 			logger.Log.Info("=== update nft")
 
-			pipe.HSet(ctx, "ni"+string(data.CodeHash)+string(data.GenesisId),
+			pipe.HSet(ctx, "ni"+strCodeHash+strGenesisId,
 				"metatxid", data.MetaTxId,
 				"metavout", data.MetaOutputIndex,
 				"supply", data.TokenSupply,
 				"sensibleid", data.SensibleId,
 			)
 
-			nftId := float64(data.TokenIndex)
-			// nft:utxo
-			mpkey = "mp:{nu" + string(data.AddressPkh) + "}" + string(data.CodeHash) + string(data.GenesisId)
-			if err := pipe.ZAdd(ctx, mpkey, &redis.Z{Score: nftId, Member: key}).Err(); err != nil {
-				panic(err)
-			}
-			if err := pipe.SAdd(ctx, "mp:keys", mpkey).Err(); err != nil {
-				panic(err)
-			}
-			// nft:utxo-detail
-			mpkey = "mp:nd" + string(data.CodeHash) + string(data.GenesisId)
-			if err := pipe.ZAdd(ctx, mpkey, &redis.Z{Score: nftId, Member: key}).Err(); err != nil {
-				panic(err)
-			}
-			if err := pipe.SAdd(ctx, "mp:keys", mpkey).Err(); err != nil {
-				panic(err)
-			}
+			member.Score = float64(data.TokenIndex)
+			mpkeyNU := "mp:{nu" + strAddressPkh + "}" + strCodeHash + strGenesisId
+			pipe.ZAdd(ctx, mpkeyNU, member) // nft:utxo
 
-			// nft:owners
-			mpkey = "mp:{no" + string(data.GenesisId) + string(data.CodeHash) + "}"
-			if err := pipe.ZIncrBy(ctx, mpkey, 1, string(data.AddressPkh)).Err(); err != nil {
-				panic(err)
-			}
-			if err := pipe.SAdd(ctx, "mp:keys", mpkey).Err(); err != nil {
-				panic(err)
-			}
-			// nft:summary
-			mpkey = "mp:{ns" + string(data.AddressPkh) + "}"
-			if err := pipe.ZIncrBy(ctx, mpkey, 1, string(data.CodeHash)+string(data.GenesisId)).Err(); err != nil {
-				panic(err)
-			}
-			if err := pipe.SAdd(ctx, "mp:keys", mpkey).Err(); err != nil {
-				panic(err)
-			}
+			mpkeyND := "mp:nd" + strCodeHash + strGenesisId
+			pipe.ZAdd(ctx, mpkeyND, member) // nft:utxo-detail
+
+			mpkeyNO := "mp:{no" + strGenesisId + strCodeHash + "}"
+			pipe.ZIncrBy(ctx, mpkeyNO, 1, strAddressPkh) // nft:owners
+
+			mpkeyNS := "mp:{ns" + strAddressPkh + "}"
+			pipe.ZIncrBy(ctx, mpkeyNS, 1, strCodeHash+strGenesisId) // nft:summary
+
+			mpkeys = append(mpkeys, mpkeyNU, mpkeyND, mpkeyNO, mpkeyNS)
 		} else if data.CodeType == scriptDecoder.CodeType_FT {
 			// ft:info
 			logger.Log.Info("=== update ft")
-			pipe.HSet(ctx, "fi"+string(data.CodeHash)+string(data.GenesisId),
+			pipe.HSet(ctx, "fi"+strCodeHash+strGenesisId,
 				"decimal", data.Decimal,
 				"name", data.Name,
 				"symbol", data.Symbol,
 				"sensibleid", data.SensibleId,
 			)
-			// ft:utxo
-			mpkey = "mp:{fu" + string(data.AddressPkh) + "}" + string(data.CodeHash) + string(data.GenesisId)
-			if err := pipe.ZAdd(ctx, mpkey, &redis.Z{Score: score, Member: key}).Err(); err != nil {
-				panic(err)
-			}
-			if err := pipe.SAdd(ctx, "mp:keys", mpkey).Err(); err != nil {
-				panic(err)
-			}
-			// ft:balance
-			mpkey = "mp:{fb" + string(data.GenesisId) + string(data.CodeHash) + "}"
-			if err := pipe.ZIncrBy(ctx, mpkey, float64(data.Amount), string(data.AddressPkh)).Err(); err != nil {
-				panic(err)
-			}
-			if err := pipe.SAdd(ctx, "mp:keys", mpkey).Err(); err != nil {
-				panic(err)
-			}
-			// ft:summary
-			mpkey = "mp:{fs" + string(data.AddressPkh) + "}"
-			if err := pipe.ZIncrBy(ctx, mpkey, float64(data.Amount), string(data.CodeHash)+string(data.GenesisId)).Err(); err != nil {
-				panic(err)
-			}
-			if err := pipe.SAdd(ctx, "mp:keys", mpkey).Err(); err != nil {
-				panic(err)
-			}
+
+			mpkeyFU := "mp:{fu" + strAddressPkh + "}" + strCodeHash + strGenesisId
+			pipe.ZAdd(ctx, mpkeyFU, member) // ft:utxo
+
+			mpkeyFB := "mp:{fb" + strGenesisId + strCodeHash + "}"
+			pipe.ZIncrBy(ctx, mpkeyFB, float64(data.Amount), strAddressPkh) // ft:balance
+
+			mpkeyFS := "mp:{fs" + strAddressPkh + "}"
+			pipe.ZIncrBy(ctx, mpkeyFS, float64(data.Amount), strCodeHash+strGenesisId) // ft:summary
+
+			mpkeys = append(mpkeys, mpkeyFU, mpkeyFB, mpkeyFS)
 		} else if data.CodeType == scriptDecoder.CodeType_UNIQUE {
 			// ft:info
 			logger.Log.Info("=== update unique")
-			pipe.HSet(ctx, "fi"+string(data.CodeHash)+string(data.GenesisId),
+			pipe.HSet(ctx, "fi"+strCodeHash+strGenesisId,
 				"decimal", data.Decimal,
 				"name", data.Name,
 				"symbol", data.Symbol,
 				"sensibleid", data.SensibleId,
 			)
-			// ft:utxo
-			mpkey = "mp:{fu" + string(data.AddressPkh) + "}" + string(data.CodeHash) + string(data.GenesisId)
-			if err := pipe.ZAdd(ctx, mpkey, &redis.Z{Score: score, Member: key}).Err(); err != nil {
-				panic(err)
-			}
-			if err := pipe.SAdd(ctx, "mp:keys", mpkey).Err(); err != nil {
-				panic(err)
-			}
+
+			mpkeyFU := "mp:{fu" + strAddressPkh + "}" + strCodeHash + strGenesisId
+			pipe.ZAdd(ctx, mpkeyFU, member) // ft:utxo
+
+			mpkeys = append(mpkeys, mpkeyFU)
 		}
 	}
 
@@ -358,262 +312,145 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 		// 暂时不清除
 		// pipe.Del(ctx, "u"+key)
 
+		strAddressPkh := string(data.AddressPkh)
+		strCodeHash := string(data.CodeHash)
+		strGenesisId := string(data.GenesisId)
+
 		// redis有序utxo数据清除
 		if len(data.AddressPkh) < 20 {
 			// 无法识别地址，暂不记录utxo
-			// if err := pipe.ZRem(ctx, "mp:utxo", key).Err(); err != nil {
-			// 	panic(err)
-			// }
+			// pipe.ZRem(ctx, "mp:utxo", key)
 			continue
 		}
 
 		if len(data.GenesisId) < 20 {
 			// 不是合约tx，则记录address utxo
 			// redis有序address utxo数据清除
-			mpkey = "mp:{au" + string(data.AddressPkh) + "}"
-			if err := pipe.ZRem(ctx, mpkey, key).Err(); err != nil {
-				panic(err)
-			}
-			if err := pipe.SAdd(ctx, "mp:keys", mpkey).Err(); err != nil {
-				panic(err)
-			}
+			mpkeyAU := "mp:{au" + strAddressPkh + "}"
+			pipe.ZRem(ctx, mpkeyAU, key)
 
 			// balance of address
-			mpkey = "mp:bl" + string(data.AddressPkh)
-			if err := pipe.DecrBy(ctx, mpkey, int64(data.Satoshi)).Err(); err != nil {
-				panic(err)
-			}
-			if err := pipe.SAdd(ctx, "mp:keys", mpkey).Err(); err != nil {
-				panic(err)
-			}
+			mpkeyBL := "mp:bl" + strAddressPkh
+			pipe.DecrBy(ctx, mpkeyBL, int64(data.Satoshi))
 			continue
 		}
 
 		// contract balance of address
-		mpkey = "mp:cb" + string(data.AddressPkh)
-		if err := pipe.DecrBy(ctx, mpkey, int64(data.Satoshi)).Err(); err != nil {
-			panic(err)
-		}
-		if err := pipe.SAdd(ctx, "mp:keys", mpkey).Err(); err != nil {
-			panic(err)
-		}
+		mpkeyCB := "mp:cb" + strAddressPkh
+		pipe.DecrBy(ctx, mpkeyCB, int64(data.Satoshi))
 
 		// redis有序genesis utxo数据清除
 		if data.CodeType == scriptDecoder.CodeType_NFT {
-			// nft:utxo
-			mpkey = "mp:{nu" + string(data.AddressPkh) + "}" + string(data.CodeHash) + string(data.GenesisId)
-			if err := pipe.ZRem(ctx, mpkey, key).Err(); err != nil {
-				panic(err)
-			}
-			if err := pipe.SAdd(ctx, "mp:keys", mpkey).Err(); err != nil {
-				panic(err)
-			}
-			// nft:utxo-detail
-			mpkey = "mp:nd" + string(data.CodeHash) + string(data.GenesisId)
-			if err := pipe.ZRem(ctx, mpkey, key).Err(); err != nil {
-				panic(err)
-			}
-			if err := pipe.SAdd(ctx, "mp:keys", mpkey).Err(); err != nil {
-				panic(err)
-			}
+			mpkeyNU := "mp:{nu" + strAddressPkh + "}" + strCodeHash + strGenesisId
+			pipe.ZRem(ctx, mpkeyNU, key) // nft:utxo
+			mpkeyND := "mp:nd" + strCodeHash + strGenesisId
+			pipe.ZRem(ctx, mpkeyND, key) // nft:utxo-detail
+			mpkeyNO := "mp:{no" + strGenesisId + strCodeHash + "}"
+			pipe.ZIncrBy(ctx, mpkeyNO, -1, strAddressPkh) // nft:owners
+			mpkeyNS := "mp:{ns" + strAddressPkh + "}"
+			pipe.ZIncrBy(ctx, mpkeyNS, -1, strCodeHash+strGenesisId) // nft:summary
 
-			// nft:owners
-			mpkey = "mp:{no" + string(data.GenesisId) + string(data.CodeHash) + "}"
-			if err := pipe.ZIncrBy(ctx, mpkey, -1, string(data.AddressPkh)).Err(); err != nil {
-				panic(err)
-			}
-			if err := pipe.SAdd(ctx, "mp:keys", mpkey).Err(); err != nil {
-				panic(err)
-			}
-			// nft:summary
-			mpkey = "mp:{ns" + string(data.AddressPkh) + "}"
-			if err := pipe.ZIncrBy(ctx, mpkey, -1, string(data.CodeHash)+string(data.GenesisId)).Err(); err != nil {
-				panic(err)
-			}
-			if err := pipe.SAdd(ctx, "mp:keys", mpkey).Err(); err != nil {
-				panic(err)
-			}
 		} else if data.CodeType == scriptDecoder.CodeType_FT {
-			// ft:utxo
-			mpkey = "mp:{fu" + string(data.AddressPkh) + "}" + string(data.CodeHash) + string(data.GenesisId)
-			if err := pipe.ZRem(ctx, mpkey, key).Err(); err != nil {
-				panic(err)
-			}
-			if err := pipe.SAdd(ctx, "mp:keys", mpkey).Err(); err != nil {
-				panic(err)
-			}
-			// ft:balance
-			mpkey = "mp:{fb" + string(data.GenesisId) + string(data.CodeHash) + "}"
-			if err := pipe.ZIncrBy(ctx, mpkey, -float64(data.Amount), string(data.AddressPkh)).Err(); err != nil {
-				panic(err)
-			}
-			if err := pipe.SAdd(ctx, "mp:keys", mpkey).Err(); err != nil {
-				panic(err)
-			}
-			// ft:summary
-			mpkey = "mp:{fs" + string(data.AddressPkh) + "}"
-			if err := pipe.ZIncrBy(ctx, mpkey, -float64(data.Amount), string(data.CodeHash)+string(data.GenesisId)).Err(); err != nil {
-				panic(err)
-			}
-			if err := pipe.SAdd(ctx, "mp:keys", mpkey).Err(); err != nil {
-				panic(err)
-			}
+			mpkeyFU := "mp:{fu" + strAddressPkh + "}" + strCodeHash + strGenesisId
+			pipe.ZRem(ctx, mpkeyFU, key) // ft:utxo
+			mpkeyFB := "mp:{fb" + strGenesisId + strCodeHash + "}"
+			pipe.ZIncrBy(ctx, mpkeyFB, -float64(data.Amount), strAddressPkh) // ft:balance
+			mpkeyFS := "mp:{fs" + strAddressPkh + "}"
+			pipe.ZIncrBy(ctx, mpkeyFS, -float64(data.Amount), strCodeHash+strGenesisId) // ft:summary
+
 		} else if data.CodeType == scriptDecoder.CodeType_UNIQUE {
-			// ft:utxo
-			mpkey = "mp:{fu" + string(data.AddressPkh) + "}" + string(data.CodeHash) + string(data.GenesisId)
-			if err := pipe.ZRem(ctx, mpkey, key).Err(); err != nil {
-				panic(err)
-			}
-			if err := pipe.SAdd(ctx, "mp:keys", mpkey).Err(); err != nil {
-				panic(err)
-			}
+			mpkeyFU := "mp:{fu" + strAddressPkh + "}" + strCodeHash + strGenesisId
+			pipe.ZRem(ctx, mpkeyFU, key) // ft:utxo
 		}
 
 		// 记录key以备删除
-		tokenToRemove[string(data.CodeHash)+string(data.GenesisId)] = true
-		addrToRemove[string(data.AddressPkh)] = true
+		tokenToRemove[strGenesisId+strCodeHash] = true
+		addrToRemove[strAddressPkh] = true
 	}
 
-	for key, data := range utxoToSpend {
+	for outpointKey, data := range utxoToSpend {
 		// redis全局utxo数据不能在这里清除，留给区块确认时去做
 		// pipe.Del(ctx, "u"+key)
+
+		strAddressPkh := string(data.AddressPkh)
+		strCodeHash := string(data.CodeHash)
+		strGenesisId := string(data.GenesisId)
+
 		// redis有序utxo数据添加
-		score := float64(data.BlockHeight)*1000000000 + float64(data.TxIdx)
+		member := &redis.Z{Score: float64(data.BlockHeight)*1000000000 + float64(data.TxIdx), Member: outpointKey}
 		if len(data.AddressPkh) < 20 {
 			// 无法识别地址，暂不记录utxo
-			// if err := pipe.ZAdd(ctx, "mp:s:utxo", &redis.Z{Score: score, Member: key}).Err(); err != nil {
-			// 	panic(err)
-			// }
+			// pipe.ZAdd(ctx, "mp:s:utxo", member)
 			continue
 		}
 
 		if len(data.GenesisId) < 20 {
 			// 不是合约tx，则记录address utxo
 			// redis有序address utxo数据添加
-			mpkey = "mp:s:{au" + string(data.AddressPkh) + "}"
-			if err := pipe.ZAdd(ctx, mpkey, &redis.Z{Score: score, Member: key}).Err(); err != nil {
-				panic(err)
-			}
-			if err := pipe.SAdd(ctx, "mp:keys", mpkey).Err(); err != nil {
-				panic(err)
-			}
+			mpkeyAU := "mp:s:{au" + strAddressPkh + "}"
+			pipe.ZAdd(ctx, mpkeyAU, member)
 
 			// balance of address
-			mpkey = "mp:bl" + string(data.AddressPkh)
-			if err := pipe.DecrBy(ctx, mpkey, int64(data.Satoshi)).Err(); err != nil {
-				panic(err)
-			}
-			if err := pipe.SAdd(ctx, "mp:keys", mpkey).Err(); err != nil {
-				panic(err)
-			}
+			mpkeyBL := "mp:bl" + strAddressPkh
+			pipe.DecrBy(ctx, mpkeyBL, int64(data.Satoshi))
+
+			mpkeys = append(mpkeys, mpkeyAU, mpkeyBL)
 			continue
 		}
 
 		// contract balance of address
-		mpkey = "mp:cb" + string(data.AddressPkh)
-		if err := pipe.DecrBy(ctx, mpkey, int64(data.Satoshi)).Err(); err != nil {
-			panic(err)
-		}
-		if err := pipe.SAdd(ctx, "mp:keys", mpkey).Err(); err != nil {
-			panic(err)
-		}
+		mpkeyCB := "mp:cb" + strAddressPkh
+		pipe.DecrBy(ctx, mpkeyCB, int64(data.Satoshi))
+		mpkeys = append(mpkeys, mpkeyCB)
 
 		// redis有序genesis utxo数据添加
 		if data.CodeType == scriptDecoder.CodeType_NFT {
-			nftId := float64(data.TokenIndex)
-			// nft:utxo
-			mpkey = "mp:s:{nu" + string(data.AddressPkh) + "}" + string(data.CodeHash) + string(data.GenesisId)
-			if err := pipe.ZAdd(ctx, mpkey,
-				&redis.Z{Score: nftId, Member: key}).Err(); err != nil {
-				panic(err)
-			}
-			if err := pipe.SAdd(ctx, "mp:keys", mpkey).Err(); err != nil {
-				panic(err)
-			}
-			// nft:utxo-detail
-			mpkey = "mp:s:nd" + string(data.CodeHash) + string(data.GenesisId)
-			if err := pipe.ZAdd(ctx, mpkey,
-				&redis.Z{Score: nftId, Member: key}).Err(); err != nil {
-				panic(err)
-			}
-			if err := pipe.SAdd(ctx, "mp:keys", mpkey).Err(); err != nil {
-				panic(err)
-			}
+			member.Score = float64(data.TokenIndex)
+			mpkeyNU := "mp:s:{nu" + strAddressPkh + "}" + strCodeHash + strGenesisId
+			pipe.ZAdd(ctx, mpkeyNU, member) // nft:utxo
+			mpkeyND := "mp:s:nd" + strCodeHash + strGenesisId
+			pipe.ZAdd(ctx, mpkeyND, member) // nft:utxo-detail
+			mpkeyNO := "mp:{no" + strGenesisId + strCodeHash + "}"
+			pipe.ZIncrBy(ctx, mpkeyNO, -1, strAddressPkh) // nft:owners
+			mpkeyNS := "mp:{ns" + strAddressPkh + "}"
+			pipe.ZIncrBy(ctx, mpkeyNS, -1, strCodeHash+strGenesisId) // nft:summary
 
-			// nft:owners
-			mpkey = "mp:{no" + string(data.GenesisId) + string(data.CodeHash) + "}"
-			if err := pipe.ZIncrBy(ctx, mpkey, -1, string(data.AddressPkh)).Err(); err != nil {
-				panic(err)
-			}
-			if err := pipe.SAdd(ctx, "mp:keys", mpkey).Err(); err != nil {
-				panic(err)
-			}
-			// nft:summary
-			mpkey = "mp:{ns" + string(data.AddressPkh) + "}"
-			if err := pipe.ZIncrBy(ctx, mpkey, -1, string(data.CodeHash)+string(data.GenesisId)).Err(); err != nil {
-				panic(err)
-			}
-			if err := pipe.SAdd(ctx, "mp:keys", mpkey).Err(); err != nil {
-				panic(err)
-			}
+			mpkeys = append(mpkeys, mpkeyNU, mpkeyND, mpkeyNO, mpkeyNS)
 		} else if data.CodeType == scriptDecoder.CodeType_FT {
-			// ft:utxo
-			mpkey = "mp:s:{fu" + string(data.AddressPkh) + "}" + string(data.CodeHash) + string(data.GenesisId)
-			if err := pipe.ZAdd(ctx, mpkey, &redis.Z{Score: score, Member: key}).Err(); err != nil {
-				panic(err)
-			}
-			if err := pipe.SAdd(ctx, "mp:keys", mpkey).Err(); err != nil {
-				panic(err)
-			}
-			// ft:balance
-			mpkey = "mp:{fb" + string(data.GenesisId) + string(data.CodeHash) + "}"
-			if err := pipe.ZIncrBy(ctx, mpkey, -float64(data.Amount), string(data.AddressPkh)).Err(); err != nil {
-				panic(err)
-			}
-			if err := pipe.SAdd(ctx, "mp:keys", mpkey).Err(); err != nil {
-				panic(err)
-			}
-			// ft:summary
-			mpkey = "mp:{fs" + string(data.AddressPkh) + "}"
-			if err := pipe.ZIncrBy(ctx, mpkey, -float64(data.Amount), string(data.CodeHash)+string(data.GenesisId)).Err(); err != nil {
-				panic(err)
-			}
-			if err := pipe.SAdd(ctx, "mp:keys", mpkey).Err(); err != nil {
-				panic(err)
-			}
+			mpkeyFU := "mp:s:{fu" + strAddressPkh + "}" + strCodeHash + strGenesisId
+			pipe.ZAdd(ctx, mpkeyFU, member) // ft:utxo
+			mpkeyFB := "mp:{fb" + strGenesisId + strCodeHash + "}"
+			pipe.ZIncrBy(ctx, mpkeyFB, -float64(data.Amount), strAddressPkh) // ft:balance
+			mpkeyFS := "mp:{fs" + strAddressPkh + "}"
+			pipe.ZIncrBy(ctx, mpkeyFS, -float64(data.Amount), strCodeHash+strGenesisId) // ft:summary
+
+			mpkeys = append(mpkeys, mpkeyFU, mpkeyFB, mpkeyFS)
 		} else if data.CodeType == scriptDecoder.CodeType_UNIQUE {
-			// ft:utxo
-			mpkey = "mp:s:{fu" + string(data.AddressPkh) + "}" + string(data.CodeHash) + string(data.GenesisId)
-			if err := pipe.ZAdd(ctx, mpkey, &redis.Z{Score: score, Member: key}).Err(); err != nil {
-				panic(err)
-			}
-			if err := pipe.SAdd(ctx, "mp:keys", mpkey).Err(); err != nil {
-				panic(err)
-			}
+			mpkeyFU := "mp:s:{fu" + strAddressPkh + "}" + strCodeHash + strGenesisId
+			pipe.ZAdd(ctx, mpkeyFU, member) // ft:utxo
+
+			mpkeys = append(mpkeys, mpkeyFU)
 		}
 
 		// 记录key以备删除
-		tokenToRemove[string(data.CodeHash)+string(data.GenesisId)] = true
-		addrToRemove[string(data.AddressPkh)] = true
+		tokenToRemove[strGenesisId+strCodeHash] = true
+		addrToRemove[strAddressPkh] = true
 	}
 
 	// 删除summary 为0的记录
 	for codeKey := range tokenToRemove {
-		if err := pipe.ZRemRangeByScore(ctx, "mp:{no"+codeKey+"}", "0", "0").Err(); err != nil {
-			panic(err)
-		}
-		if err := pipe.ZRemRangeByScore(ctx, "mp:{fb"+codeKey+"}", "0", "0").Err(); err != nil {
-			panic(err)
-		}
+		pipe.ZRemRangeByScore(ctx, "mp:{no"+codeKey+"}", "0", "0")
+		pipe.ZRemRangeByScore(ctx, "mp:{fb"+codeKey+"}", "0", "0")
 	}
 	// 删除balance 为0的记录
 	for addr := range addrToRemove {
-		if err := pipe.ZRemRangeByScore(ctx, "mp:{ns"+addr+"}", "0", "0").Err(); err != nil {
-			panic(err)
-		}
-		if err := pipe.ZRemRangeByScore(ctx, "mp:{fs"+addr+"}", "0", "0").Err(); err != nil {
-			panic(err)
-		}
+		pipe.ZRemRangeByScore(ctx, "mp:{ns"+addr+"}", "0", "0")
+		pipe.ZRemRangeByScore(ctx, "mp:{fs"+addr+"}", "0", "0")
+	}
+
+	// 记录所有的mp:keys，以备区块确认后直接删除重来
+	for _, mpkey := range mpkeys {
+		pipe.SAdd(ctx, "mp:keys", mpkey)
 	}
 
 	_, err = pipe.Exec(ctx)
