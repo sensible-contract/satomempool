@@ -257,13 +257,10 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 			member.Score = float64(data.TokenIndex)
 			mpkeyNU := "mp:{nu" + strAddressPkh + "}" + strCodeHash + strGenesisId
 			pipe.ZAdd(ctx, mpkeyNU, member) // nft:utxo
-
 			mpkeyND := "mp:nd" + strCodeHash + strGenesisId
 			pipe.ZAdd(ctx, mpkeyND, member) // nft:utxo-detail
-
 			mpkeyNO := "mp:{no" + strGenesisId + strCodeHash + "}"
 			pipe.ZIncrBy(ctx, mpkeyNO, 1, strAddressPkh) // nft:owners
-
 			mpkeyNS := "mp:{ns" + strAddressPkh + "}"
 			pipe.ZIncrBy(ctx, mpkeyNS, 1, strCodeHash+strGenesisId) // nft:summary
 
@@ -280,10 +277,8 @@ func UpdateUtxoInRedis(utxoToRestore, utxoToRemove, utxoToSpend map[string]*mode
 
 			mpkeyFU := "mp:{fu" + strAddressPkh + "}" + strCodeHash + strGenesisId
 			pipe.ZAdd(ctx, mpkeyFU, member) // ft:utxo
-
 			mpkeyFB := "mp:{fb" + strGenesisId + strCodeHash + "}"
 			pipe.ZIncrBy(ctx, mpkeyFB, float64(data.Amount), strAddressPkh) // ft:balance
-
 			mpkeyFS := "mp:{fs" + strAddressPkh + "}"
 			pipe.ZIncrBy(ctx, mpkeyFS, float64(data.Amount), strCodeHash+strGenesisId) // ft:summary
 
